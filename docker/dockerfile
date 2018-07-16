@@ -1,0 +1,6 @@
+FROM ubuntu:16.04
+MAINTAINER brightskye
+
+#add missing tzdata for timezone configuration
+RUN apt-get update
+RUN apt-get -y install tzdata nano
