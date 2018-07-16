@@ -1,0 +1,1036 @@
+#!/bin/bash
+
+##########################################################################
+##########################################################################
+#################   nvOC v0019-2.1 - Community Release   #################
+##########   Based on the original nvOC v0019-1.4 by fullzero   ##########
+##########################################################################
+##########################################################################
+
+
+# 3main for v0019-2.1
+#
+# Dev Mod Log:
+#
+# v=0001 : papampi and Stubo:
+#          bug fixes, code clean-up, optimizations and split into 2 files: 3main and 0miner
+#
+# v=0002 : leenoox
+#          bug fix - $pwr_lim_daggerhashimoto5 > $pwr_lim_daggerhashimoto
+#          bug fix - INDIVIDUAL settings were applied to GPU's 0-13 only. Fixed to work with 0-18
+#          code optimization
+#
+# v=0003 : leenoox
+#          added GPU LED Logo brightness control
+#
+# v=0004 : papampi
+#          Telegram Changes
+#
+# v=0005 : papampi
+#          Minor change on miner launch and output
+#
+# v=0006 : papampi
+#          Changes local watchdog and temp control start and guake output
+# v=0007 : papampi
+#          Revert local miner to screen
+#          Launch wtm auto switch in screen
+# v=0008 : papampi
+#          Local with wtm auto switch shows tail to prevent showing miner terminated
+# v=0009 : papampi
+#          Added P104 and changed P106 to P10X
+# v=0010 : papampi
+#          Download and Restore default xorg.conf
+# v=0011 : papampi
+#          WTM 2nd lower minimum difference to switch
+# v=0012 : LukePicchi
+#          Relocation and more
+# v=0013 : papampi
+#          wipe dead screens
+# v=0014 : LukePicci
+#          Relocate nvOC to arbitrary install directory
+# v=0015 : papampi
+#          OhGodAnETHlargementPill for 1080 and 1080TI Ethahsh mining pill
+# v=0016 : sizzlephizzle
+#          Declaration of ALGO
+# v=0017 : LuKePicci
+#          Flexible and simplified OC policies
+# v=0018 : papampi
+#          HEADLEAS_MODE and some code cleanups
+# v=0019 : LuKePicci,papampi
+#          ${NVOC}/nvoc_logs tmpfs mount
+# v=0020 : LuKePicci,papampi
+#          AUTO_SWITCH generalized implementetion
+# v=0021 : papampi
+#          Algo identification edits for Algo mining unification
+# v=0022 : LuKePicci
+#          Reworked OC PerfLevel detection, 0algo_id
+# v=0023 : papampi
+#          Fix XMR cpu miner
+# v=0024 : LuKePicci
+#          Support CUDA version selection
+
+source ${NVOC}/1bash
+
+nvOC_ver="nvOC v0019-2.1 - Community Release"   # Do not edit this
+nvOC_3main_ver="v0019-2.1.0024"                  # Do not edit this
+
+#########################################################################
+#########################################################################
+#########################################################################
+#########################################################################
+
+echo ""
+echo " $nvOC_ver "
+echo ""
+echo ""
+
+sudo ldconfig /usr/local/cuda/lib64
+
+GPUS=$(nvidia-smi -i 0 --query-gpu=count --format=csv,noheader,nounits)
+
+NVD=nvidia-settings
+
+screen -wipe
+
+if [[ $TEAMVIEWER == YES ]]
+then
+  running=$(ps -ef | awk '$NF~"teamviewer" {print $2}')
+  if [ "$running" == "" ]
+  then
+    sudo teamviewer --daemon enable
+    sleep 2
+    guake -n teamviewer -r teamviewer -e "teamviewer"
+    running=""
+  fi
+fi
+
+if [[ $TEAMVIEWER == NO ]]
+then
+  running=$(ps -ef | awk '$NF~"teamviewer" {print $2}')
+  if [ "$running" != "" ]
+  then
+    sudo teamviewer --daemon disable
+    sleep 2
+    running=""
+  fi
+fi
+
+if [[ $SSH == YES ]]
+then
+  sudo cp /etc/init/ssh.conf-on /etc/init/ssh.conf
+fi
+
+if [[ $SSH == NO ]]
+then
+  sudo cp /etc/init/ssh.conf-off /etc/init/ssh.conf
+fi
+
+if [[ $SRR == YES ]]
+then
+  sleep 2
+  HCD=${NVOC}/SRR
+  if ! ps ax | grep -q '[S]RR';  then
+    guake -n $HCD -r SRR -e "bash ${NVOC}/SRR"
+  fi
+fi
+
+if [[ $CLEAR_LOGS_ON_BOOT == YES ]]
+then
+  sudo bash "${NVOC}/clear_logs"
+fi
+
+export DISPLAY=:0
+
+if [[ $LOG_ROTATE == YES ]]
+then
+  HCD="${NVOC}/log_rotate"
+  if ! ps ax | grep -q '[l]og_rotate'
+  then
+    guake -n $HCD -r LOG_ROTATE -e "bash ${NVOC}/log_rotate"
+  fi
+fi
+
+if [ ! -f ${NVOC}/nvoc_logs/tempa ]
+then
+  nvidia-smi -L > ${NVOC}/nvoc_logs/tempa
+fi
+
+if grep -q -E 'P104|P102' ${NVOC}/nvoc_logs/tempa; then
+  GPU_OC_PROFILE="1 ${GPU_OC_PROFILE}"
+fi
+
+if grep -q -E "1050|P106" ${NVOC}/nvoc_logs/tempa; then
+  GPU_OC_PROFILE="2 ${GPU_OC_PROFILE}"
+fi
+
+if grep -q -E '1060|1070|1080' ${NVOC}/nvoc_logs/tempa; then
+  GPU_OC_PROFILE="3 ${GPU_OC_PROFILE}"
+fi
+
+XORG="FAIL"
+
+if [[ $HEADLESS_MODE == YES ]]
+then
+  if ! grep -q "XORG_UPDATED" ${NVOC}/xorg_flag;
+  then
+    sudo nvidia-xconfig -a --enable-all-gpus --allow-empty-initial-configuration --cool-bits=28
+    echo XORG_UPDATED > "${NVOC}/xorg_flag"
+    sleep 4
+    echo "XORG UPDATED"
+    echo ""
+    echo "Rebooting in 5"
+    echo ""
+    echo "disconnect monitor if connected"
+    sleep 5
+    sudo reboot
+  fi
+  XORG="OK"
+fi
+
+if grep -q "28800" /etc/X11/xorg.conf;
+then
+  XORG="OK"
+fi
+
+# dev note by leenoox:
+# we need to create function for this:
+if [[ $SLOW_USB_KEY_MODE == YES ]]
+then
+  sleep 6
+fi
+
+if [[ $XORG == FAIL ]]
+then
+  echo ""
+  echo "Xorg PROBLEM DETECTED"
+  echo ""
+  echo "Restoring Xorg"
+  echo ""
+  if [[ -e ${NVOC}/xorg.conf.default ]]
+  then
+    echo "Restore default xorg.conf"
+    sudo cp ${NVOC}/xorg.conf.default /etc/X11/xorg.conf.default
+  else
+    echo "Downloading default xorg.conf"
+    wget -N https://raw.githubusercontent.com/papampi/nvOC_by_fullzero_Community_Release/19-2.1/xorg.conf.default -O /tmp/xorg.conf.default
+    echo "Restore default xorg.conf"
+    sudo cp /tmp/xorg.conf.default /etc/X11/xorg.conf.default
+  fi
+  sudo cp /etc/X11/xorg.conf.default /etc/X11/xorg.conf
+  echo "Rebooting in 5 seconds"
+  sleep 5
+  sudo reboot
+fi
+
+# install web scripts
+mkdir -p "${HOME}/www/cgi-bin"
+for webscript in minerinfo
+do
+  if [[ -L "$HOME/www/cgi-bin/$webscript" ]]
+  then
+    rm "$HOME/www/cgi-bin/$webscript"
+  fi
+  if [[ ! -e "$HOME/www/cgi-bin/$webscript" ]]
+  then
+    ln -s "${NVOC}/www/cgi-bin/$webscript" "${HOME}/www/cgi-bin/$webscript"
+    chmod +x "${HOME}/www/cgi-bin/$webscript"
+  fi
+done
+
+IP=$(ifconfig | sed -En 's/127.0.0.1//;s/.*inet (addr:)?(([0-9]*\.){3}[0-9]*).*/\2/p')
+
+echo ""
+echo ""
+echo "rig IP: $IP"
+echo ""
+echo ""
+echo "rig MAC: $MAC"
+
+if [[ $SLOW_USB_KEY_MODE == YES ]]
+then
+  sleep 6
+fi
+
+echo ""
+echo ""
+lspci | grep VGA
+
+if [[ $SLOW_USB_KEY_MODE == YES ]]
+then
+  sleep 6
+fi
+
+if [[ $LOCALorREMOTE == LOCAL ]]
+then
+  echo ""
+  echo ""
+  # Just print out some info in the terminal
+  nvidia-smi
+  echo ""
+  
+  if [[ $SLOW_USB_KEY_MODE == YES ]]
+  then
+    sleep 6
+  fi
+fi
+
+if [[ $USE_ENVIRONMENTAL_VARIBLES == YES ]]
+then
+  export GPU_FORCE_64BIT_PTR="0"
+  export GPU_MAX_HEAP_SIZE="100"
+  export GPU_USE_SYNC_OBJECTS="1"
+  export GPU_MAX_ALLOC_PERCENT="100"
+  echo ""
+  echo ENVIRONMENTAL VARIBLES SET
+fi
+
+if [[ $CONTROL_GPU_LED == YES ]]
+then
+  sudo ${NVD} -a GPULogoBrightness="$LED_BRIGHTNESS"
+fi
+
+source ${NVOC}/0algo_id
+
+if [[ $POWERLIMIT_MODE == GLOBAL ]]
+then
+  sudo nvidia-smi -pl "$_POWERLIMIT_WATTS"
+fi
+
+if [[ $POWERLIMIT_MODE == GPU_SPECIFIC ]]
+then
+  for i in $(seq 0 $((GPUS-1)))
+  do
+    sudo nvidia-smi -i $i -pl $((INDIVIDUAL_POWERLIMIT_$i))
+  done
+fi
+
+if [[ $POWERLIMIT_MODE == ALGO_SPECIFIC ]]
+then
+  for i in $(seq 0 $((GPUS-1)))
+  do
+    sudo nvidia-smi -i $i -pl $((${ALGO}_POWERLIMIT_WATTS))
+  done
+fi
+
+if [[ $POWERLIMIT_MODE == GLOBAL_with_GPU_OFFSET ]]
+then
+  for i in $(seq 0 $((GPUS-1)))
+  do
+    sudo nvidia-smi -i $i -pl $((_POWERLIMIT_WATTS + INDIVIDUAL_POWERLIMIT_$i))
+  done
+fi
+
+if [[ $POWERLIMIT_MODE == ALGO_SPECIFIC_with_GPU_OFFSET ]]
+then
+  for i in $(seq 0 $((GPUS-1)))
+  do
+    sudo nvidia-smi -i $i -pl $((${ALGO}_POWERLIMIT_WATTS + INDIVIDUAL_POWERLIMIT_$i))
+  done
+fi
+
+if [[ $plusCPU == YES && $AUTO_START_MINER == YES ]]
+then
+  HCD="${NVOC}/cpuOPT/cpuminer"
+  XMRADDR="$XMR_ADDRESS.$XMR_WORKER"
+  echo ""
+  echo ""
+  echo "LAUNCHING:  plusCPU"
+  if ! ps ax | grep -q '[c]puminer'
+  then
+    if [[ $LOCALorREMOTE == LOCAL ]]
+    then
+      guake -n $HCD -r plusCPU -e "$HCD -a cryptonightv7 -o stratum+tcp://$XMR_POOL:$XMR_PORT -u $XMRADDR -p x -t $threadCOUNT"
+    else
+      screen -c ${NVOC}/screenrc-miner -dmS plusCPU $HCD -a cryptonightv7 -o stratum+tcp://$XMR_POOL:$XMR_PORT -u $XMRADDR -p x -t $threadCOUNT
+    fi
+    echo ""
+    echo "plusCPU process in guake terminal Tab (f12)"
+    echo ""
+    running=""
+  fi
+fi
+
+if [[ $AUTO_REBOOT == YES ]]
+then
+  HCD="${NVOC}/7reboot"
+  if ! ps ax | grep -q '[7]reboot'
+  then
+    guake -n $HCD -r AUTO_REBOOT -e "bash ${NVOC}/7reboot"
+  fi
+fi
+
+if [[ $_Parallax_MODE == YES ]]
+then
+  HCD="${NVOC}/upPASTE"
+  if ! ps ax | grep -q '[u]pPASTE'
+  then
+    echo ""
+    echo ""
+    echo "LAUNCHING:  _Parallax_and_lost_post_upPASTE"
+    echo ""
+    echo "process in guake terminal Tab (f12)"
+    echo ""
+    guake -n $HCD -r PX_LP_upPASTE -e "bash ${NVOC}/upPASTE"
+  fi
+fi
+
+sleep 2
+
+if [[ $MINER_TEMP_CONTROL == YES ]]
+then
+  if ps ax | grep -q '[6]tempcontrol'; then
+    ps -ef | awk '$NF~"6tempcontrol" {print $2}' | xargs kill
+  fi
+  sleep 2
+  echo ""
+  if ! ps ax | grep -q '[6]tempcontrol'; then
+    echo "LAUNCHING:  MINER TEMPCONTROL"
+    screen -c ${NVOC}/screenrc-tempcontrol -dmSL temp bash ${NVOC}/6tempcontrol
+    echo ""
+    if [[ $LOCALorREMOTE == LOCAL ]]; then
+      echo "process in screen temp, guake terminal Tab (f12), 'nvOC temp-log'"
+      #if guake tab is already showing temp control output dont open a new one
+      if ! ps ax | grep "tail -n 0 -f ${NVOC}/nvoc_logs/[t]empcontrol-screenlog.0"; then
+        guake -n ${NVOC}/6tempcontrol -r MINER_TEMP_CONTROL -e "tail -n 0 -f ${NVOC}/nvoc_logs/tempcontrol-screenlog.0"
+      fi
+    elif [[ $LOCALorREMOTE == REMOTE ]]; then
+      echo "process in screen temp; 'nvOC temp-log'"
+    fi
+    echo ""
+  fi
+fi
+
+if [[ $TELEGRAM_MESSAGES == YES ]]
+then
+  HCD="${NVOC}/7telegram"
+  if ! ps ax | grep -q '[7]telegram'
+  then
+    guake -n $HCD -r TELEGRAM_MESSAGES -e "bash ${NVOC}/7telegram"
+    running=""
+  fi
+fi
+
+if (( FAN_SPEED < 40 ))
+then
+  FAN_SPEED=40
+fi
+
+if [[ $WTM_PROFIT_CHECK == YES && $AUTO_SWITCH != WTM_SWITCHING ]]
+then
+  echo ""
+  echo "LAUNCHING:  WTM PROFIT CHECK "
+  echo ""
+
+  cat <<EOF >${NVOC}/WTM.json
+{
+ "output_dir": "${NVOC}",
+ "WTM_URL": "$WTM_AUTO_SWITCH_URL",
+ "WTM_COINS": "$WTM_AUTO_SWITCH_COINS",
+ "WTM_MIN_DIFFERENCE": "$WTM_MIN_DIFFERENCE",
+ "currency":"$WTM_CURRENCY"
+}
+EOF
+  HCD="${NVOC}/8wtm_profit_check"
+  if ! ps ax | grep -q '[8]wtm_profit_check'
+  then
+    guake -n $HCD -r WTM_PROFIT_CHECK -e "bash ${NVOC}/8wtm_profit_check"
+    running=""
+  fi
+fi
+
+if [[ ${AUTO_SWITCH:0:7} == SALFTER ]]
+then
+  for a in daggerhashimoto equihash neoscrypt lyra2rev2 lbry blake_vanilla cryptonight cryptonight_monero groestl keccak myriad_groestl qubit scrypt sia skein x11
+  do
+    if [[ $OVERCLOCK_MODE == NO ]]
+    then
+      eval gpu_clks_$a=0
+      eval mem_clks_$a=0
+    elif [[ $OVERCLOCK_MODE == GLOBAL ]]
+    then
+      eval gpu_clks_$a=$_CORE_OVERCLOCK
+      eval mem_clks_$a=$_MEMORY_OVERCLOCK
+    elif [[ $OVERCLOCK_MODE == GLOBAL_with_GPU_OFFSET ]]
+    then
+      eval gpu_clks_$a="[$(seq 0 $((GPUS-1)) | sed -e 's/^/\$((_CORE_OVERCLOCK + __CORE_OVERCLOCK_/' -e 's/$/))/' | paste -s -d, -)]"
+      eval mem_clks_$a="[$(seq 0 $((GPUS-1)) | sed -e 's/^/\$((_MEMORY_OVERCLOCK + MEMORY_OVERCLOCK_/' -e 's/$/))/' | paste -s -d, -)]"
+    elif [[ $OVERCLOCK_MODE == GPU_SPECIFIC ]]
+    then
+      eval gpu_clks_$a="[$(seq 0 $((GPUS-1)) | sed -e 's/^/\${__CORE_OVERCLOCK_/' -e 's/$/}/' | paste -s -d, -)]"
+      eval mem_clks_$a="[$(seq 0 $((GPUS-1)) | sed -e 's/^/\${MEMORY_OVERCLOCK_/' -e 's/$/}/' | paste -s -d, -)]"
+    elif [[ $OVERCLOCK_MODE == ALGO_SPECIFIC ]]
+    then
+      eval gpu_clks_$a=$((${a}_CORE_OVERCLOCK))
+      eval mem_clks_$a=$((${a}_MEMORY_OVERCLOCK))
+    elif [[ $OVERCLOCK_MODE == ALGO_SPECIFIC_with_GPU_OFFSET ]]
+    then
+      eval gpu_clks_$a="[$(seq 0 $((GPUS-1)) | sed -e 's/^/\$((${a}_CORE_OVERCLOCK + __CORE_OVERCLOCK_/' -e 's/$/))/' | paste -s -d, -)]"
+      eval mem_clks_$a="[$(seq 0 $((GPUS-1)) | sed -e 's/^/\$((${a}_MEMORY_OVERCLOCK + MEMORY_OVERCLOCK_/' -e 's/$/))/' | paste -s -d, -)]"
+    fi
+
+    if [[ $POWERLIMIT_MODE == GLOBAL ]]
+    then
+      eval pwr_lim_$a=$_POWERLIMIT_WATTS
+    elif [[ $POWERLIMIT_MODE == GLOBAL_with_GPU_OFFSET ]]
+    then
+      eval pwr_lim_$a="[$(seq 0 $((GPUS-1)) | sed -e 's/^/\$((_POWERLIMIT_WATTS+INDIVIDUAL_POWERLIMIT_/' -e 's/$/))/' | paste -s -d, -)]"
+    elif [[ $POWERLIMIT_MODE == GPU_SPECIFIC ]]
+    then
+      eval pwr_lim_$a="[$(seq 0 $((GPUS-1)) | sed -e 's/^/\${INDIVIDUAL_POWERLIMIT_/' -e 's/$/}/' | paste -s -d, -)]"
+    elif [[ $POWERLIMIT_MODE == ALGO_SPECIFIC ]]
+    then
+      eval pwr_lim_$a=$((${a}_POWERLIMIT_WATTS))
+    elif [[ $POWERLIMIT_MODE == ALGO_SPECIFIC_with_GPU_OFFSET ]]
+    then
+      eval pwr_lim_$a="[$(seq 0 $((GPUS-1)) | sed -e 's/^/\$((${a}_POWERLIMIT_WATTS+INDIVIDUAL_POWERLIMIT_/' -e 's/$/))/' | paste -s -d, -)]"
+    fi
+  done
+fi
+
+if [[ $AUTO_SWITCH == SALFTER_NICEHASH_SWITCHING ]]
+then
+  if ! grep -q "api.nicehash.com" /etc/hosts
+  then
+    cp -f /etc/hosts /tmp/hosts.edited
+	echo "104.20.158.21 api.nicehash.com" >> /tmp/hosts.edited
+	sudo cp -f /tmp/hosts.edited /etc/hosts
+    echo UPDATED HOSTS FILE WITH IPv6 FIX
+    echo ""
+    echo ""
+  fi
+
+  sleep 2
+  cd "${NVOC}"
+
+  cat <<EOF >${NVOC}/nice_conf.json
+{
+ "output_dir": "${NVOC}",
+ "currency": "$CURRENCY",
+ "pwrcost": $POWER_COST,
+ "min_profit": $MINIMUM_PROFIT,
+ "payment_addr": "$PAYMENT_ADDRESS",
+ "miner_name": "$WORKER_NAME",
+ "performance":
+ {
+   "daggerhashimoto": {
+     "speed": 0.087, "power": 0.397,
+     "power_limit": $pwr_lim_daggerhashimoto, "gpu_oc": $gpu_clks_daggerhashimoto, "mem_oc": $mem_clks_daggerhashimoto, "fan": 0,
+     "cmd": "${NVOC}/miners/ethminer/latest/ethminer -SP 2 -S daggerhashimoto.usa.nicehash.com:3353 -O {ADDR}.{MINER}:x -U"
+   },
+   "equihash": {
+     "speed": 0.000001140, "power": 0.397,
+     "power_limit": $pwr_lim_equihash, "gpu_oc": $gpu_clks_equihash, "mem_oc": $mem_clks_equihash, "fan": 0,
+     "cmd": "${NVOC}/miners/ewbf/3_4/miner --eexit 3 --fee 0 --pec --server equihash.usa.nicehash.com --user {ADDR}.{MINER} --pass z --port 3357"
+   },
+   "neoscrypt": {
+     "speed": 0.002160, "power": 0.397,
+     "power_limit": $pwr_lim_neoscrypt, "gpu_oc": $gpu_clks_neoscrypt, "mem_oc": $mem_clks_neoscrypt, "fan": 0,
+     "cmd": "${NVOC}/miners/KTccminer/ccminer -a neoscrypt -o stratum+tcp://neoscrypt.usa.nicehash.com:3341 -u {ADDR}.{MINER} -p x"
+   },
+   "lyra2rev2": {
+     "speed": 0.081, "power": 0.386,
+     "power_limit": $pwr_lim_lyra2rev2, "gpu_oc": $gpu_clks_lyra2rev2, "mem_oc": $mem_clks_lyra2rev2, "fan": 0,
+     "cmd": "${NVOC}/miners/SPccminer/ccminer -a lyra2v2 -o stratum+tcp://lyra2rev2.usa.nicehash.com:3347 -u {ADDR}.{MINER} -p x"
+   },
+   "lbry": {
+     "speed": 0.639, "power": 0.392,
+     "power_limit": $pwr_lim_lbry, "gpu_oc": $gpu_clks_lbry, "mem_oc": $mem_clks_lbry, "fan": 0,
+     "cmd": "${NVOC}/miners/SPccminer/ccminer -a lbry -o stratum+tcp://lbry.usa.nicehash.com:3356 -u {ADDR}.{MINER} -p x"
+   }
+ }
+}
+EOF
+
+  AUTO_SWITCH_CMD="python2.7 ${NVOC}/nice_switch ${NVOC}/nice_conf.json"
+fi
+# END SALFTER_NICEHASH_SWITCHING #
+
+if [[ $AUTO_SWITCH == SALFTER_MPH_SWITCHING ]]
+then
+  cd "${NVOC}"
+
+  cat <<EOF >${NVOC}/mph_conf.json
+{
+  "output_dir": "${NVOC}",
+  "user_name": "$MPH_USERNAME",
+  "miner_name": "$WORKER_NAME",
+  "card_type": "nvidia",
+  "currency": "$CURRENCY",
+  "pwrcost": $POWER_COST,
+  "min_profit": $MINIMUM_PROFIT,
+  "miners":
+  {
+    "Blake-Vanilla":
+    {
+      "bin": "${NVOC}/miners/SPccminer/ccminer -a vanilla -o stratum+tcp://{HOST}:{PORT} -u {NAME}.{MINER} -p x",
+      "power_limit": $pwr_lim_blake_vanilla, "gpu_oc": $gpu_clks_blake_vanilla, "mem_oc": $mem_clks_blake_vanilla, "fan": 0,
+      "speed": 12.3, "power": 0.389
+    },
+    "Cryptonight-Monero":
+    {
+      "bin": "${NVOC}/miners/xmr-stak/xmr-stak_miner --currency monero7 --noCPU --noAMD -o {HOST}:{PORT} -u {NAME}.{MINER} -p x -i 0",
+      "power_limit": $pwr_lim_cryptonight_monero, "gpu_oc": $gpu_clks_cryptonight_monero, "mem_oc": $mem_clks_cryptonight_monero, "fan": 0,
+      "speed": 0.000002, "power": 0.325
+    },
+    "Equihash":
+    {
+      "bin": "${NVOC}/miners/ewbf/3_4/miner --eexit 3 --fee 0 --pec --server {HOST} --user {NAME}.{MINER} --pass z --port {PORT}",
+      "power_limit": $pwr_lim_equihash, "gpu_oc": $gpu_clks_equihash, "mem_oc": $mem_clks_equihash, "fan": 0,
+      "speed": 0.000001140, "power": 0.397
+    },
+    "Ethash":
+    {
+      "bin": "${NVOC}/miners/ethminer/latest/ethminer -S {HOST}:{PORT} -O {NAME}.{MINER}:x -U",
+      "power_limit": $pwr_lim_daggerhashimoto, "gpu_oc": $gpu_clks_daggerhashimoto, "mem_oc": $mem_clks_daggerhashimoto, "fan": 0,
+      "speed": 0.087, "power": 0.397
+    },
+    "Groestl":
+    {
+      "bin": "${NVOC}/miners/SPccminer/ccminer -a groestl -o stratum+tcp://{HOST}:{PORT} -u {NAME}.{MINER} -p x",
+      "power_limit": $pwr_lim_groestl, "gpu_oc": $gpu_clks_groestl, "mem_oc": $mem_clks_groestl, "fan": 0,
+      "speed": 0.0853, "power": 0.392
+    },
+    "Keccak":
+    {
+      "bin": "${NVOC}/miners/SPccminer/ccminer -a keccak -o stratum+tcp://{HOST}:{PORT} -u {NAME}.{MINER} -p x",
+      "power_limit": $pwr_lim_keccak, "gpu_oc": $gpu_clks_keccak, "mem_oc": $mem_clks_keccak, "fan": 0,
+      "speed": 1.45, "power": 0.391
+    },
+    "Lyra2RE2":
+    {
+      "bin": "${NVOC}/miners//SPccminer/ccminer -a lyra2v2 -o stratum+tcp://{HOST}:{PORT} -u {NAME}.{MINER} -p x",
+      "power_limit": $pwr_lim_lyra2rev2, "gpu_oc": $gpu_clks_lyra2rev2, "mem_oc": $mem_clks_lyra2rev2, "fan": 0,
+      "speed": 0.081, "power": 0.386
+    },
+    "Myriad-Groestl":
+    {
+      "bin": "${NVOC}/miners/SPccminer/ccminer -a myr-gr -o stratum+tcp://{HOST}:{PORT} -u {NAME}.{MINER} -p x",
+      "power_limit": $pwr_lim_myriad_groestl, "gpu_oc": $gpu_clks_myriad_groestl, "mem_oc": $mem_clks_myriad_groestl, "fan": 0,
+      "speed": 0.158, "power": 0.391
+    },
+    "NeoScrypt":
+    {
+      "bin": "${NVOC}/miners/KTccminer/ccminer -a neoscrypt -o stratum+tcp://{HOST}:{PORT} -u {NAME}.{MINER} -p x",
+      "power_limit": $pwr_lim_neoscrypt, "gpu_oc": $gpu_clks_neoscrypt, "mem_oc": $mem_clks_neoscrypt, "fan": 0,
+      "speed": 0.002160, "power": 0.397
+    },
+    "Qubit":
+    {
+      "bin": "${NVOC}/miners/SPccminer/ccminer -a qubit -o stratum+tcp://{HOST}:{PORT} -u {NAME}.{MINER} -p x",
+      "power_limit": $pwr_lim_qubit, "gpu_oc": $gpu_clks_qubit, "mem_oc": $mem_clks_qubit, "fan": 0,
+      "speed": 0.0509, "power": 0.382
+    },
+    "Scrypt":
+    {
+      "bin": "${NVOC}/miners/SPccminer/ccminer -a scrypt -o stratum+tcp://{HOST}:{PORT} -u {NAME}.{MINER} -p x",
+      "power_limit": $pwr_lim_scrypt, "gpu_oc": $gpu_clks_scrypt, "mem_oc": $mem_clks_scrypt, "fan": 0,
+      "speed": 0.00224, "power": 0.403
+    },
+    "Sia":
+    {
+      "bin": "${NVOC}/miners/SPccminer/ccminer -a sia -o stratum+tcp://{HOST}:{PORT} -u {NAME}.{MINER} -p x",
+      "power_limit": $pwr_lim_sia, "gpu_oc": $gpu_clks_sia, "mem_oc": $mem_clks_sia, "fan": 0,
+      "speed": 3.700, "power": 0.403
+    },
+    "Skein":
+    {
+      "bin": "${NVOC}/miners/ASccminer/ccminer -a skein -o stratum+tcp://{HOST}:{PORT} -u {NAME}.{MINER} -p x",
+      "power_limit": $pwr_lim_skein, "gpu_oc": $gpu_clks_skein, "mem_oc": $mem_clks_skein, "fan": 0,
+      "speed": 0.835, "power": 0.383
+    },
+    "X11":
+    {
+      "bin": "${NVOC}/miners/TPccminer/ccminer -a x11 -o stratum+tcp://{HOST}:{PORT} -u {NAME}.{MINER} -p x",
+      "power_limit": $pwr_lim_x11, "gpu_oc": $gpu_clks_x11, "mem_oc": $mem_clks_x11, "fan": 0,
+      "speed": 0.0327, "power": 0.403
+    }
+  }
+}
+EOF
+
+  AUTO_SWITCH_CMD="python2.7 ${NVOC}/mph_switch ${NVOC}/mph_conf.json"
+fi
+# END SALFTER_MPH_SWITCHING #
+
+if [[ $AUTO_SWITCH == SALFTER_PROGRAMATIC_SWITCHING ]]
+then
+  cd "${NVOC}"
+
+  cat <<EOF >${NVOC}/programatic_conf.json
+{
+  "output_dir": "${NVOC}",
+  "card_type": "nvidia",
+  "config_json_url": "$PROGRAMATIC_SWITCH_CONFIG_JSON_URL",
+  "miners":
+  {
+    "Blake-Vanilla":
+    {
+      "bin": "${NVOC}/miners/SPccminer/ccminer -a vanilla -o stratum+tcp://{HOST}:{PORT} -u {NAME}.{MINER} -p x -p c={COIN_CURRENCY}",
+      "power_limit": $pwr_lim_blake_vanilla, "gpu_oc": $gpu_clks_blake_vanilla, "mem_oc": $mem_clks_blake_vanilla, "fan": 0
+    },
+    "Cryptonight":
+    {
+      "bin": "${NVOC}/miners/KTccminer-cryptonight/ccminer -o stratum+tcp://{HOST}:{PORT} -u {NAME} -p x",
+      "power_limit": $pwr_lim_cryptonight, "gpu_oc": $gpu_clks_cryptonight, "mem_oc": $mem_clks_cryptonight, "fan": 0
+    },
+    "Cryptonight-Monero":
+    {
+      "bin": "${NVOC}/miners/xmr-stak/xmr-stak_miner --currency monero7 --noCPU --noAMD -o {HOST}:{PORT} -u {NAME}.{MINER} -p x -i 0",
+      "power_limit": $pwr_lim_cryptonight_monero, "gpu_oc": $gpu_clks_cryptonight_monero, "mem_oc": $mem_clks_cryptonight_monero, "fan": 0
+    },
+    "Cryptonight-Heavy":
+    {
+      "bin": "${NVOC}/miners/xmrig-nvidia/xmrig-nvidia -a cryptonight-heavy -o {HOST}:{PORT} -u {NAME} -p x -k",
+      "power_limit": $pwr_lim_cryptonight, "gpu_oc": $gpu_clks_cryptonight, "mem_oc": $mem_clks_cryptonight, "fan": 0
+    },
+    "Equihash":
+    {
+      "bin": "${NVOC}/miners/dstm/latest/zm_miner --server {HOST} --port {PORT} --user {NAME}.{MINER} --pass x --telemetry=0.0.0.0:2222 --time --color",
+      "power_limit": $pwr_lim_equihash, "gpu_oc": $gpu_clks_equihash, "mem_oc": $mem_clks_equihash, "fan": 0
+    },
+    "Ethash":
+    {
+      "bin": "${NVOC}/miners/ethminer/latest/ethminer -S {HOST}:{PORT} -O {NAME}.{MINER}:x -U",
+      "power_limit": $pwr_lim_daggerhashimoto, "gpu_oc": $gpu_clks_daggerhashimoto, "mem_oc": $mem_clks_daggerhashimoto, "fan": 0
+    },
+    "Groestl":
+    {
+      "bin": "${NVOC}/miners/SPccminer/ccminer -a groestl -o stratum+tcp://{HOST}:{PORT} -u {NAME}.{MINER} -p x -p c={COIN_CURRENCY}",
+      "power_limit": $pwr_lim_groestl, "gpu_oc": $gpu_clks_groestl, "mem_oc": $mem_clks_groestl, "fan": 0
+    },
+    "Keccak":
+    {
+      "bin": "${NVOC}/miners/SPccminer/ccminer -a keccak -o stratum+tcp://{HOST}:{PORT} -u {NAME}.{MINER} -p x -p c={COIN_CURRENCY}",
+      "power_limit": $pwr_lim_keccak, "gpu_oc": $gpu_clks_keccak, "mem_oc": $mem_clks_keccak, "fan": 0
+    },
+    "Lyra2RE2":
+    {
+      "bin": "${NVOC}/miners/SPccminer/ccminer -a lyra2v2 -o stratum+tcp://{HOST}:{PORT} -u {NAME}.{MINER} -p x -p c={COIN_CURRENCY}",
+      "power_limit": $pwr_lim_lyra2rev2, "gpu_oc": $gpu_clks_lyra2rev2, "mem_oc": $mem_clks_lyra2rev2, "fan": 0
+    },
+    "Myriad-Groestl":
+    {
+      "bin": "${NVOC}/miners/SPccminer/ccminer -a myr-gr -o stratum+tcp://{HOST}:{PORT} -u {NAME}.{MINER} -p x -p c={COIN_CURRENCY}",
+      "power_limit": $pwr_lim_myriad_groestl, "gpu_oc": $gpu_clks_myriad_groestl, "mem_oc": $mem_clks_myriad_groestl, "fan": 0
+    },
+    "NeoScrypt":
+    {
+      "bin": "${NVOC}/miners/KTccminer/ccminer -a neoscrypt -o stratum+tcp://{HOST}:{PORT} -u {NAME}.{MINER} -p x -p c={COIN_CURRENCY}",
+      "power_limit": $pwr_lim_neoscrypt, "gpu_oc": $gpu_clks_neoscrypt, "mem_oc": $mem_clks_neoscrypt, "fan": 0
+    },
+    "Qubit":
+    {
+      "bin": "${NVOC}/miners/SPccminer/ccminer -a qubit -o stratum+tcp://{HOST}:{PORT} -u {NAME}.{MINER} -p x -p c={COIN_CURRENCY}",
+      "power_limit": $pwr_lim_qubit, "gpu_oc": $gpu_clks_qubit, "mem_oc": $mem_clks_qubit, "fan": 0
+    },
+    "Scrypt":
+    {
+      "bin": "${NVOC}/miners/SPccminer/ccminer -a scrypt -o stratum+tcp://{HOST}:{PORT} -u {NAME}.{MINER} -p x -p c={COIN_CURRENCY}",
+      "power_limit": $pwr_lim_scrypt, "gpu_oc": $gpu_clks_scrypt, "mem_oc": $mem_clks_scrypt, "fan": 0
+    },
+    "Sia":
+    {
+      "bin": "${NVOC}/miners/SPccminer/ccminer -a sia -o stratum+tcp://{HOST}:{PORT} -u {NAME}.{MINER} -p x -p c={COIN_CURRENCY}",
+      "power_limit": $pwr_lim_sia, "gpu_oc": $gpu_clks_sia, "mem_oc": $mem_clks_sia, "fan": 0
+    },
+    "Skein":
+    {
+      "bin": "${NVOC}/miners/ASccminer/ccminer -a skein -o stratum+tcp://{HOST}:{PORT} -u {NAME}.{MINER} -p x -p c={COIN_CURRENCY}",
+      "power_limit": $pwr_lim_skein, "gpu_oc": $gpu_clks_skein, "mem_oc": $mem_clks_skein, "fan": 0
+    },
+    "X11":
+    {
+      "bin": "${NVOC}/miners/TPccminer/ccminer -a x11 -o stratum+tcp://{HOST}:{PORT} -u {NAME}.{MINER} -p x -p c={COIN_CURRENCY}",
+      "power_limit": $pwr_lim_x11, "gpu_oc": $gpu_clks_x11, "mem_oc": $mem_clks_x11, "fan": 0
+    }
+  }
+}
+EOF
+
+  AUTO_SWITCH_CMD="python2.7 ${NVOC}/programatic_switch ${NVOC}/programatic_conf.json"
+fi
+# END SALFTER_PROGRAMATIC_SWITCHING #
+
+if [[ $AUTO_SWITCH == WTM_SWITCHING ]]
+then
+  echo ""
+  echo "LAUNCHING:  WTM AUTO SWITCH "
+  echo ""
+  cat <<EOF >${NVOC}/WTM.json
+{
+"output_dir": "${NVOC}",
+"WTM_URL": "$WTM_AUTO_SWITCH_URL",
+"WTM_COINS": "$WTM_AUTO_SWITCH_COINS",
+"WTM_MIN_DIFFERENCE": "$WTM_MIN_DIFFERENCE",
+"currency":"$WTM_CURRENCY"
+}
+EOF
+  cat <<EOF >${NVOC}/WTM_1.json
+{
+"output_dir": "${NVOC}",
+"WTM_URL": "$WTM_AUTO_SWITCH_URL",
+"WTM_COINS": "$WTM_AUTO_SWITCH_COINS",
+"WTM_MIN_DIFFERENCE": "$WTM_LOWER_MIN_DIFFERENCE",
+"currency":"$WTM_CURRENCY"
+}
+EOF
+  if ! ps ax | grep -q '[8]wtm_auto_switch'
+  then
+    screen -c ${NVOC}/screenrc-wtm -dmSL wtm bash ${NVOC}/8wtm_auto_switch
+    if [[ $LOCALorREMOTE == LOCAL ]]; then
+      echo ""
+      echo "process in screen wtm, guake terminal Tab (f12)"
+      if ! ps ax | grep "tail -n 0 -f ${NVOC}/nvoc_logs/[8]_wtmautoswitchlog"; then
+        guake -n ${NVOC}/8wtm_auto_switch -r WTM_SWITCHING -e "tail -n 0 -f ${NVOC}/nvoc_logs/8_wtmautoswitchlog"
+      fi
+    elif [[ $LOCALorREMOTE == REMOTE ]]; then
+      echo "process in screen wtm, 'nvOC wtm-log'"
+      echo "    "
+    fi
+  fi
+else
+  pkill -f 8wtm_auto_switch
+fi
+
+if [[ $OhGodAnETHlargementPill == YES && $ALGO == ETHASH ]]
+then
+  echo " Launching OhGodAnETHlargementPill"
+  HCD="${NVOC}/OhGodAnETHlargementPill-r2"
+  if ! ps ax | grep -q '[O]hGodAnETHlargementPill'
+  then
+    screen -dmS eth_pill sudo $HCD
+    if [[ $LOCALorREMOTE == LOCAL ]]
+    then
+      guake -n $HCD -r ETH_PILL -e "screen -r eth_pill"
+    fi
+  fi
+else
+  pkill -f OhGodAnETHlargementPill-r2
+fi
+
+if [[ $OVERCLOCK_MODE == NO ]]
+then
+  for i in $(seq 0 $((GPUS-1)))
+  do
+    __CORE_OVERCLOCK[$i]=0
+    MEMORY_OVERCLOCK[$i]=0
+  done
+elif [[ $OVERCLOCK_MODE == GLOBAL ]]
+then
+  for i in $(seq 0 $((GPUS-1)))
+  do
+    __CORE_OVERCLOCK[$i]=$_CORE_OVERCLOCK
+    MEMORY_OVERCLOCK[$i]=$_MEMORY_OVERCLOCK
+  done
+elif [[ $OVERCLOCK_MODE == GLOBAL_with_GPU_OFFSET ]]
+then
+  for i in $(seq 0 $((GPUS-1)))
+  do
+    __CORE_OVERCLOCK[$i]=$(( _CORE_OVERCLOCK + __CORE_OVERCLOCK_$i ))
+    MEMORY_OVERCLOCK[$i]=$(( _MEMORY_OVERCLOCK + MEMORY_OVERCLOCK_$i ))
+  done
+elif [[ $OVERCLOCK_MODE == GPU_SPECIFIC ]]
+then
+  for i in $(seq 0 $((GPUS-1)))
+  do
+    __CORE_OVERCLOCK[$i]=$((__CORE_OVERCLOCK_$i))
+    MEMORY_OVERCLOCK[$i]=$((MEMORY_OVERCLOCK_$i))
+  done
+else
+  UNDEFINED_CORE_OVERCLOCK=$_CORE_OVERCLOCK
+  UNDEFINED_MEMORY_OVERCLOCK=$_MEMORY_OVERCLOCK
+
+  if [[ $OVERCLOCK_MODE == ALGO_SPECIFIC_with_GPU_OFFSET ]]
+  then
+    for i in $(seq 0 $((GPUS-1)))
+    do
+      __CORE_OVERCLOCK[$i]=$(( ${ALGO}_CORE_OVERCLOCK + __CORE_OVERCLOCK_$i ))
+      MEMORY_OVERCLOCK[$i]=$(( ${ALGO}_MEMORY_OVERCLOCK + MEMORY_OVERCLOCK_$i ))
+    done
+  elif [[ $OVERCLOCK_MODE == ALGO_SPECIFIC ]]
+  then
+    for i in $(seq 0 $((GPUS-1)))
+    do
+      __CORE_OVERCLOCK[$i]=$((${ALGO}_CORE_OVERCLOCK))
+      MEMORY_OVERCLOCK[$i]=$((${ALGO}_MEMORY_OVERCLOCK))
+    done
+  fi
+fi
+
+if [[ $SLOW_USB_KEY_MODE == YES ]]
+then
+  sleep 6
+fi
+
+if [[ $MINER_TEMP_CONTROL == NO ]]
+then
+  if [[ $MANUAL_FAN == YES ]]
+  then
+    gpu=0
+    while (( gpu < GPUS ))
+    do
+      NVD_SETTINGS="${NVD_SETTINGS} -a [gpu:$gpu]/GPUFanControlState=1 -a [fan:$gpu]/GPUTargetFanSpeed=${FAN_SPEED}"
+      gpu=$((gpu+1))
+    done
+  else
+    gpu=0
+    while (( gpu < GPUS ))
+    do
+      NVD_SETTINGS="${NVD_SETTINGS} -a [gpu:$gpu]/GPUFanControlState=0"
+      gpu=$((gpu+1))
+    done
+  fi
+fi
+
+gpu=0
+while (( gpu < GPUS ))
+do
+  for j in ${GPU_OC_PROFILE}
+  do
+    CORE=${__CORE_OVERCLOCK[${gpu}]}
+    MEM=${MEMORY_OVERCLOCK[${gpu}]}
+    NVD_SETTINGS="${NVD_SETTINGS} -a [gpu:$gpu]/GPUGraphicsClockOffset[${j}]=$CORE -a [gpu:$gpu]/GPUMemoryTransferRateOffset[${j}]=$MEM"
+  done
+  gpu=$((gpu+1))
+done
+
+if [[ $GPUPowerMizerMode_Adjust == YES ]]
+then
+  gpu=0
+  while (( gpu < GPUS ))
+  do
+    NVD_SETTINGS="${NVD_SETTINGS} -a [gpu:$gpu]/GPUPowerMizerMode=\"${GPUPowerMizerMode}\""
+    gpu=$((gpu+1))
+  done
+fi
+
+# Apply GPU settings
+sudo ${NVD} $NVD_SETTINGS &
+
+
+if [[ $SLOW_USB_KEY_MODE == YES ]]
+then
+  sleep 6
+fi
+
+if [[ $AUTO_START_MINER == YES ]]
+then
+  echo "Auto Start Miner Set to YES"
+
+  while ps ax | grep SCREEN | grep -v cpuminer | grep -q miner ; do
+    echo "" | tee -a ${NVOC}/nvoc_logs/screenlog.0
+    echo "$(date) - Miner is running, 3main killing miner" | tee -a ${NVOC}/nvoc_logs/screenlog.0
+    ps ax | grep SCREEN | grep -v cpuminer | grep miner | awk '"miner" {print $1}' | xargs kill -9
+    sleep 2
+  done
+
+  if [[ $MINER_WATCHDOG == YES ]]
+  then
+    echo ""
+    sleep 2
+    if ! ps ax | grep -q '[5]watchdog'
+    then
+      screen -c ${NVOC}/screenrc-watchdog -dmSL wdog bash ${NVOC}/5watchdog
+      if [[ $LOCALorREMOTE == LOCAL ]]
+      then
+        echo "LAUNCHING:  MINER WATCHDOG (LOCAL)"
+        echo ""
+        echo "process in screen wdog, guake terminal Tab (f12), 'nvOC wdog-log'"
+        #if guake tab is already showing watchdog output dont open a new one
+        if [[ ! $(ps ax | grep "tail -f ${NVOC}/nvoc_logs/watchdog-screenlog.0" |grep -v grep) ]];then
+          guake -n ${NVOC}/5watchdog -r MINER_WATCHDOG -e "tail -f  ${NVOC}/nvoc_logs/watchdog-screenlog.0 "
+        fi
+        echo ""
+      elif [[ $LOCALorREMOTE == REMOTE ]]
+      then
+        echo "LAUNCHING:  MINER WATCHDOG (REMOTE)"
+        echo ""
+        echo "process in screen wdog; 'nvOC wdog-log'"
+      fi
+    fi
+  fi
+  
+  ## If auto_switch is unknown, set it to no and continue mining
+  if [[ $AUTO_SWITCH != NO && $AUTO_SWITCH != WTM_SWITCHING && $AUTO_SWITCH != SALFTER_NICEHASH_SWITCHING && $AUTO_SWITCH != SALFTER_MPH_SWITCHING && $AUTO_SWITCH != SALFTER_PROGRAMATIC_SWITCHING ]]
+  then
+    echo "Unknown Auto Switch, Check 1bash, Setting it to NO"
+    AUTO_SWITCH="NO"
+  fi
+
+  if [[ $AUTO_SWITCH == NO || $AUTO_SWITCH == WTM_SWITCHING ]]
+  then
+    if [[ $ALGO == UNDEFINED ]]
+    then
+      echo ""
+      echo "[WARNING] - Attempting to launch miner for an undefined algo"
+    fi
+
+    echo ""
+    echo "LAUNCHING:  MINER"
+    echo "    "
+    bash ${NVOC}/0miner
+    echo "    "
+    echo "    "$(ps ax | grep -i screen | grep miner | grep -o 'SCREEN.*') | tee -a ${NVOC}/nvoc_logs/screenlog.0
+    echo "    "
+
+    if [[ $LOCALorREMOTE == REMOTE ]]
+    then
+      echo "Miner output: ./nvOC miner-log"
+      echo "    "
+      echo "    "
+    elif [[ $LOCALorREMOTE == LOCAL ]]
+    then
+      echo "Miner output: ./nvOC miner-log"
+      echo "    "
+      echo "    "
+      tail -f -n 1 ${NVOC}/nvoc_logs/screenlog.0
+    fi
+  elif [[ ${AUTO_SWITCH:0:7} == SALFTER ]]
+  then
+    echo "LAUNCHING:  ${AUTO_SWITCH} (will launch miner)"
+    echo ""
+
+    while true
+    do
+      ${AUTO_SWITCH_CMD}
+      echo ""
+      cat ${NVOC}/current-profit
+      echo ""
+      if [[ $LOCALorREMOTE == LOCAL ]]
+      then
+        if ! ps ax | grep "tail -n 0 -f ${NVOC}/nvoc_logs/[s]creenlog.0" ; then
+          guake -n 1 -r AUTO_SWITCH  -e "tail -n 0 -f ${NVOC}/nvoc_logs/screenlog.0"
+        fi
+        echo "mining process in Guake Tab"
+        echo ""
+      fi
+      if [[ $LOCALorREMOTE == REMOTE ]]
+      then
+        echo "ENTER:"
+        echo ""
+        echo "screen -r miner"
+        echo ""
+        echo "in a terminal to view mining process"
+      fi
+      sleep "$PROFIT_CHECK_TIMEOUT"
+    done
+  fi
+
+elif [[ $AUTO_START_MINER == NO ]]
+then
+  echo "    "
+  echo "    "
+  echo -e "\e[1m \e[31m    Auto Start Miner is set to NO \e[0m"
+  echo "    "
+  echo -e "\e[1m \e[31m    Miner is not starting \e[0m"
+  echo "    "
+  echo "    "
+fi
+
+
+
+# Infinite Loop
+while true
+do
+  sleep 60
+done

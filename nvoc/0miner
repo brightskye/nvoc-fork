@@ -1,0 +1,228 @@
+#!/bin/bash
+
+##########################################################################
+##########################################################################
+################# nvOC v0019-2.1 - Community Release     #################
+#########  Based on the original nvOC v0019-1.4 by fullzero     ##########
+##########################################################################
+##########################################################################
+
+# 0miner for nvOC v0019-2.1
+
+# DEV Mod Log:
+# v=0001 : papampi: Initial Release
+#
+# v=0002 : papampi:
+#          fix lbc
+# v=0003 : papampi:
+#          More NiceHash, MINER_PWD failsafe,
+#          COIN_EXTENSION_ARGUMENTS for ethminer and genoil
+# v=0004 : damNmad:
+#          New Coins LUX, SUMO, DSR
+# v=0005 : papampi:
+#          New Coin ELLA, XVG, GBX, CRC
+# v=0006 : papampi:
+#          EQUIHASH_MINER, bminer, ETHASH_MINER
+# v=0007 : papampi:
+#          Nicehash bug fixes
+# v=0008 : papampi:
+#          Move all miners to "${NVOC}"/miners/
+# v=0009 : papampi
+#          Pool Wallet Address Format
+# v=0010 : papampi
+#          New Claymore Dual Mining
+# v=0011 : damNmad
+#          Added BTCP
+# v=0012 : Falcon
+#          Added CCMINER_OPTS, added RavenCoin (RVN)
+# v=0013 : papampi
+#          Changed EWBF HCD
+# v=0014 : papampi
+#          Code cleanup, NEOSCRYPT_MINER, LYRA2V2_MINER, SKUNK_MINER, SKEIN_MINER
+# v=0015 : LukePicci
+#          Relocate nvOC to arbitrary install directory
+# v=0016 : papampi
+#          Prevent running 2 miners
+# v=0017 : sizzlephizzle
+#	         Unification of EQUIHASH & ETHASH mining by ALGO.
+# v=0018 : papampi, sizzlephizzle
+#	         Algo Unification for all algorithms
+# v=0019 : papampi
+#          Crytponight Heavy
+
+nvOC_Ver="nvOC v0019-2.1 - Community Release"
+nvOC_0miner_ver="v0019-2.0.0019" # Do not edit this
+
+source "${NVOC}/1bash"
+source "${NVOC}/0algo_id"
+
+# Prevent running 2 miners
+if ps ax | grep SCREEN | grep -v cpuminer | grep -q miner ; then
+  ps ax | grep SCREEN | grep -v cpuminer | grep miner | awk '"miner" {print $1}' | xargs kill -9
+fi
+
+# Define cuda runtime paths
+CUDA_ENV="PATH=/usr/local/cuda/bin:$PATH LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH"
+
+# Set MINER_PWD if unset
+if [ -z "${MINER_PWD+x}" ]
+then
+  MINER_PWD="x"
+fi
+
+## Unify COIN Start
+UPOOL="_POOL"
+UPORT="_PORT"
+UADDR="_ADDRESS"
+UWORK="_WORKER"
+UEXT="_EXTENSION_ARGUMENTS"
+UINTENSITY="_INTENSITY"
+UWALLET="_WALLET_FORMAT"
+UMINER="_MINER"
+UCUDA="_CUDA"
+
+xpool=$COIN$UPOOL
+xport=$COIN$UPORT
+xaddr=$COIN$UADDR
+xwork=$COIN$UWORK
+xext=$COIN$UEXT
+xintensity=$ALGO$UINTENSITY
+xwallet=$ALGO$UWALLET
+xminer=$ALGO$UMINER
+xcuda=$ALGO$UCUDA
+
+if [[ ${!xcuda} != "" ]]
+then
+  CUDA_ENV=${CUDA_ENV/cuda/${!xcuda}}
+fi
+
+LAUNCH="$CUDA_ENV screen -c ${NVOC}/screenrc-miner -dmSL miner"
+
+## Unify COIN End
+
+## NICEHASH
+if [[ ${COIN:0:4} == NICE ]]
+then
+  NICE_NEOSCRYPT_ADDRESS=$NICE_ADDRESS
+  NICE_LYRA2REV2_ADDRESS=$NICE_ADDRESS
+  NICE_X11GOST_ADDRESS=$NICE_ADDRESS
+  NICE_SKUNKHASH_ADDRESS=$NICE_ADDRESS
+  NICE_CRYPTONIGHT_ADDRESS=$NICE_ADDRESS
+  NICE_EQUIHASH_ADDRESS=$NICE_ADDRESS
+  NICE_ETHASH_ADDRESS=$NICE_ADDRESS
+## ZPOOL
+elif [[ ${COIN:0:5} == ZPOOL ]]
+then
+  ZPOOL_NEOSCRYPT_ADDRESS=$BTC_ADDRESS
+  ZPOOL_LYRA2REV2_ADDRESS=$BTC_ADDRESS
+  ZPOOL_SKUNK_ADDRESS=$BTC_ADDRESS
+  ZPOOL_EQUIHASH_ADDRESS=$BTC_ADDRESS
+  ZPOOL_LBRY_ADDRESS=$BTC_ADDRESS
+  ZPOOL_SKEIN_ADDRESS=$BTC_ADDRESS
+## MPH
+elif [[ ${COIN:0:3} == MPH ]]
+then
+  MPH_NEOSCRYPT_ADDRESS=$MPH_ADDRESS
+  MPH_LYRA2REV2_ADDRESS=$MPH_ADDRESS
+  MPH_LYRA2Z_ADDRESS=$MPH_ADDRESS
+  MPH_CRYPTONIGHT_ADDRESS=$MPH_ADDRESS
+  MPH_EQUIHASH_ADDRESS=$MPH_ADDRESS
+  MPH_ETHASH_ADDRESS=$MPH_ADDRESS
+  MPH_SKEIN_ADDRESS=$MPH_ADDRESS
+  MPH_CRYPTONIGHTV7==$MPH_ADDRESS
+fi
+
+## CLAYMORE_DUAL
+if [[ $COIN == CLAYMORE_DUAL ]]
+then
+  HCD=${NVOC}/miners/claymore/$CLAYMORE_VERSION/ethdcrminer64
+  E_ADDR="$DUAL_EWAL""$ETHASH_WALLET_FORMAT""$DUAL_EWORKER"
+  D_ADDR="$DUAL_DWAL""$DUAL_WALLET_FORMAT""$DUAL_DWORKER"
+  screen -c "${NVOC}"/screenrc-miner -dmSL miner "$HCD" -epool "$DUAL_EPOOL":"$DUAL_EPORT" -ewal "$E_ADDR" -epsw "$DUAL_EPSW" -dpool stratum+tcp://"$DUAL_DPOOL":"$DUAL_DPORT" -dwal "$D_ADDR" -dpsw "$DUAL_DPSW" -dcoin "$DUAL_DCOIN" -allpools "$ALL_POOLS" -dbg -1 -mport "$MPORT" -mpsw "$MPSW" "$DUAL_ADDITIONAL_ARGUMENTS"
+fi
+
+## ETHASH
+if [[ $ALGO == ETHASH ]]
+then
+## Declare Miner Start
+  if [[ $ETHASH_MINER == GENOIL ]]
+  then
+    HCD="${NVOC}/miners/Genoil-U/ethminer -S ${!xpool}:${!xport} -O ${!xaddr}${!xwallet}${!xwork}:$MINER_PWD -SP 1 -U ${!xext}"
+  elif [[ $ETHASH_MINER == ETHMINER ]]
+  then
+    HCD="${NVOC}/miners/ethminer/latest/ethminer -S ${!xpool}:${!xport} -O ${!xaddr}${!xwallet}${!xwork}:$MINER_PWD -SP 1 -U ${!xext} $ETHMINER_OPTS"
+  elif [[ $ETHASH_MINER == CLAYMORE ]]
+  then
+    HCD="${NVOC}/miners/claymore/$CLAYMORE_VERSION/ethdcrminer64 -epool ${!xpool}:${!xport} -ewal ${!xaddr}${!xwallet}${!xwork} -epsw $MINER_PWD -mode 1 -dbg -1 ${!xext} $CLAYMORE_OPTS"
+  elif [[ $ETHASH_MINER == BMINER ]]
+  then
+    HCD="${NVOC}/miners/bminer/latest/bminer -uri $BMINER_PROTOCOL://${!xaddr}${!xwallet}${!xwork}:$MINER_PWD@${!xpool}:${!xport} $BMINER_OPTS ${!xext}"
+  fi
+  eval $LAUNCH $HCD
+
+## EQUIHASH
+elif [[ $ALGO == EQUIHASH ]];
+then
+  if [[ $EQUIHASH_MINER == DSTM ]]
+  then
+    HCD="${NVOC}/miners/dstm/latest/zm_miner --server ${!xpool} --user ${!xaddr}${!xwallet}${!xwork} --port ${!xport} --pass $MINER_PWD --time $DSTM_OPTS ${!xext}"
+  elif [[ $EQUIHASH_MINER == EWBF ]]
+  then
+    if [[ EWBF_VERSION == 3_4 || EWBF_VERSION == 3_3 ]]
+    then
+      HCD="${NVOC}/miners/ewbf/$EWBF_VERSION/miner --eexit 3 --fee $EWBF_PERCENT --pec --server ${!xpool} --user ${!xaddr}${!xwallet}${!xwork} --pass $MINER_PWD --port ${!xport} $EWBF_OPTS ${!xext}"
+    else
+      HCD="${NVOC}/miners/ewbf/$EWBF_VERSION/miner --fee $EWBF_PERCENT --server ${!xpool} --user ${!xaddr}${!xwallet}${!xwork} --pass $MINER_PWD --port ${!xport} $EWBF_OPTS ${!xext}"
+    fi
+  elif [[ $EQUIHASH_MINER == BMINER ]]
+  then
+    HCD="${NVOC}/miners/bminer/latest/bminer -uri $BMINER_PROTOCOL://${!xaddr}${!xwallet}${!xwork}:$MINER_PWD@${!xpool}:${!xport} $BMINER_OPTS ${!xext}"
+  fi
+  eval $LAUNCH $HCD
+
+elif [[ $ALGO == X16R || $ALGO == SIB || $ALGO == LYRA2Z || $ALGO == SKUNK || $ALGO == KECCAK || $ALGO == SKEIN || $ALGO == NEOSCRYPT || $ALGO == LYRA2V2 || $ALGO == BITCORE || $ALGO == PHI || $ALGO == LBRY || $ALGO == DMD_GR || $ALGO == GROESTL || $ALGO == MYR_GR || $ALGO == DECRED || $ALGO == SIA || $ALGO == X13 || $ALGO == XEVAN ]]
+then
+  UCCALGO="-a ${ALGO,,}"
+  HCD="${NVOC}"/miners/"${!xminer}"/ccminer
+  eval $LAUNCH $HCD $UCCALGO -o stratum+tcp://"${!xpool}":"${!xport}" -u "${!xaddr}""${!xwallet}""${!xwork}" -p "$MINER_PWD" -i "${!xintensity}" $CCMINER_OPTS ${!xext}
+
+## CRYPTONIGHT
+elif [[ $ALGO == CRYPTONIGHT ]]
+then
+  HCD="${NVOC}"/miners/KTccminer-cryptonight/ccminer
+  eval $LAUNCH $HCD -o stratum+tcp://"${!xpool}":"${!xport}" -u "${!xaddr}""${!xwallet}""${!xwork}" -p "$MINER_PWD" -i "${!xintensity}" $CCMINER_OPTS ${!xext}
+
+## PASCAL
+elif [[ $ALGO == PASCAL ]]
+then
+  HCD="${NVOC}"/miners/pasc/sgminer
+  UCCALGO="-k pascal"
+  eval $LAUNCH $HCD $UCCALGO -o stratum+tcp://"${!xpool}":"${!xport}" -u "${!xaddr}""${!xwallet}""${!xwork}" -p "$MINER_PWD" -i "${!xintensity}" $CCMINER_OPTS ${!xext}
+
+  ## CRYPTONIGHTV7
+elif [[ $ALGO == CRYPTONIGHTV7 || $ALGO == CRYPTONIGHTHEAVY ]];
+then
+# Remove nvidia.txt if cards count changed
+  if [ -f ~/nvidia.txt ]
+  then
+    if [ "$(grep -c "// gpu:" ~/nvidia.txt)" != "$(nvidia-smi -i 0 --query-gpu=count --format=csv,noheader,nounits)" ]
+    then
+      rm ~/nvidia.txt
+    fi
+  fi
+  # Change verbosity to show hashrate in output log
+  if [ -f ~/config.txt ]
+  then
+    if grep -q '"verbose_level" : 3' ~/config.txt
+    then
+      sed -i 's/"verbose_level" : 3/"verbose_level" : 4/g' ~/config.txt
+    fi
+  fi
+  HCD=${NVOC}/miners/xmr-stak/xmr-stak_miner
+  eval $LAUNCH $HCD --currency monero7 --noCPU --noAMD -o "${!xpool}":"${!xport}" -u "${!xaddr}""${!xwallet}""${!xwork}" -p "$MINER_PWD" -i 0
+else
+  echo ""
+  echo "COIN/ALGO not found, Check your settings"
+  echo "Miner not started, Stopping watchdog"
+  pkill -f 5watchdog
+fi

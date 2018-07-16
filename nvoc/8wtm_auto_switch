@@ -1,0 +1,201 @@
+#!/bin/bash
+
+##########################################################################
+##########################################################################
+#################   nvOC v0019-2.1 - Community Release   #################
+##############        by papampi, Stubo and leenoox         ##############
+##########   Based on the original nvOC v0019-1.4 by fullzero   ##########
+##########################################################################
+##########################################################################
+
+# WhatToMine.com Auto Switch by papampi
+# for nvOC v0019-2.1 - Community Release
+
+
+# DEV Mod Log:
+#
+# v=0001 : papampi: Initial Revision
+#
+# v=0002 : Papampi: Added 24 hour average revenue
+#
+# v=0003 : Papampi: Wait for miner start to prevent double miner running
+#
+# v=0004 : leenoox: Read curent coin from 1bash
+#
+# v=0005 : Papampi: Add Algo check to restart only miner or 3main
+#
+# v=0006 : Papampi: Check for last top coin whether its in coin list or not
+#
+# v=0007 : Papampi: Changes for plusCPU
+#
+# v=0008 : Papampi: Added minimum mining time, 24H Average revenue
+#
+# v=0009 : Papampi: Fixed minimum mining time
+#
+# v=0010 : Papampi: Yet another Fix for minimum mining time
+#
+# v=0011 : Papampi: Disable minimum mining time, causing problems
+#
+# v=0012 : Papampi: Added NiceHash, Start in screen and changed logging system.
+#
+# v=0013 : Papampi: Enable and Change minimum mining time
+#
+# v=0014 : Papampi: Added force switch to bypass minimum wait time if profit is higher than given value.
+#
+# v=0015 : Papampi: Changed top coin resolve
+#
+# v=0016 : Papampi: New miner time based on last switch
+#
+# v=0017 : Papampi: Kill miner before restart 3main to prevent GPU lockup
+#
+# v=0018 : Papampi: Some code cleanups
+#
+# v=0019 : Papampi: Lower difference when minimum mining time reached
+#
+# v=0020 : LukePicci: Relocate nvOC to arbitrary install directory
+#
+# v=0021 : LuKePicci: Flexible OC settings policies
+#
+# v=0022 : papampi: Fix no top_coin on first run
+
+
+nvOC_Ver="nvOC v0019-2.1 - Community Release"
+wtm_auto_switch_ver="v0019-2.1.0022"   # Do not edit this
+
+echo ""
+echo ""
+echo "WhatToMine.com Auto Switch $wtm_auto_switch_ver by papampi"
+echo ""
+
+export NVOC="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+source ${NVOC}/1bash
+source ${NVOC}/0algo_id
+
+WDOG_LOG="${NVOC}/nvoc_logs/watchdog-screenlog.0"
+
+# Creating a log file to record coin switch
+WTM_HISTORY="${NVOC}/WTM_switch_history"
+if [[ -e "$WTM_HISTORY" ]] ; then
+  #Limit the logfile, just keep the last 100 lines
+  echo "$(cat $WTM_HISTORY | tail -n 100)" > $WTM_HISTORY
+fi
+
+FIRST_COIN="$(echo "$WTM_AUTO_SWITCH_COINS" | awk -F'[_;]' '{print $1}')"
+
+# Prevent first run error on no top_coin
+if [[ ! -e ${NVOC}/WTM_top_coin ]]
+then
+  echo "$FIRST_COIN:100" > ${NVOC}/WTM_top_coin
+  TOP_COIN=$FIRST_COIN
+else
+  TOP_COIN=$(sed 's/:[0-9]*//' < ${NVOC}/WTM_top_coin)
+fi
+
+# Check last top coin and change if not in coin list any more
+if [ ! $(echo "$WTM_AUTO_SWITCH_COINS" | grep "$TOP_COIN") ]
+then
+  echo "Last top coin not in current coin list any more, Switch to 1st coin"
+  echo " " > ${NVOC}/WTM_top_coin
+  echo "$FIRST_COIN:100" > ${NVOC}/WTM_top_coin
+fi
+
+MINER_START_TIME=$(date +%s)
+while true
+do
+  source ${NVOC}/1bash
+  TIMEOUT=$((WTM_AUTO_SWITCH_SYNC_INTERVAL * 60))
+  
+  if [[ $AUTO_START_MINER == YES ]]; then
+
+    #Waiting for miner start before start switching
+    if [[ !  $(ps ax | grep SCREEN | grep miner | grep -v cpuminer) ]];then
+      echo "Miner not running"
+      echo ""
+      while [[ -z $(ps ax | grep SCREEN | grep miner | grep -v cpuminer) ]];  do
+        echo "Miner still not running, waiting ..."
+        echo ""
+        sleep 5
+      done
+      echo "Miner is running now"
+    fi
+
+    CURRENT_TIME=$(date +%s)
+    CURRENT_COIN=$COIN
+    CURRENT_COIN_ALGORITHM=$ALGO
+    MINER_TIME=$(( CURRENT_TIME - MINER_START_TIME ))
+    MINER_TIME_MIN=$(( MINER_TIME / 60 ))
+    echo "Mining $CURRENT_COIN for $MINER_TIME_MIN minutes"
+
+    if (( MINER_TIME >= WTM_MINIMUM_MINING_TIME ))
+    then
+      echo "Minimum mining time passed, checking for new coins with ${WTM_LOWER_MIN_DIFFERENCE}% more profit"
+      python2.7 ${NVOC}/WTM_SWITCHER ${NVOC}/WTM_1.json
+    else
+      echo "Minimum mining time not reached, checking for new coins with ${WTM_MIN_DIFFERENCE}% more profit"
+      python2.7 ${NVOC}/WTM_SWITCHER ${NVOC}/WTM.json
+    fi
+
+    sleep 5
+    TOP_COIN=$(sed 's/:[0-9]*//' < ${NVOC}/WTM_top_coin)
+
+    if [[ $CURRENT_COIN != $TOP_COIN ]]; then
+
+      #If miner running time is more than given time or profit is more than given value switch the coin
+      FORCE_SWITCH=0
+      CURRENT_COIN_PROFIT=$(grep "$COIN"  < ${NVOC}/WTM_current_profit | sed 's/.*://')
+      TOP_COIN_PROFIT=$(sed 's/.*://' < ${NVOC}/WTM_top_coin)
+
+      if (( TOP_COIN_PROFIT - CURRENT_COIN_PROFIT >= WTM_FORCE_SWITCH ))
+      then
+        FORCE_SWITCH=1
+      fi
+      
+      if [[ $MINER_TIME -ge $WTM_MINIMUM_MINING_TIME || $FORCE_SWITCH == 1 ]]; then
+        if [[ $FORCE_SWITCH == 1 ]];then
+          echo "New coin has %$((TOP_COIN_PROFIT - CURRENT_COIN_PROFIT)) more profit, ignore timer and make the switch"
+        fi
+        MINER_START_TIME=$(date +%s)
+        sed -i '/^#/!s/'COIN=\"$CURRENT_COIN\"'/'COIN=\"$TOP_COIN\"/'' ${NVOC}/1bash
+        grep "$(awk -F: '{print $1}' <  ${NVOC}/WTM_top_coin)" <  ${NVOC}/WTM_current_revenue |  awk -F: '{print $2}' >> ${NVOC}/WTM_24H_REV
+        SYNC_COUNT=$(( 1440 / WTM_AUTO_SWITCH_SYNC_INTERVAL ))
+        echo "$(tail -$SYNC_COUNT ${NVOC}/WTM_24H_REV)" > ${NVOC}/WTM_24H_REV
+        sed -i '/^$/d' ${NVOC}/WTM_24H_REV
+
+        echo "Current Coin Algo: $CURRENT_COIN_ALGORITHM"
+        # echo "Top Coin Algo: $TOP_COIN_ALGORITHM"
+        echo "Current Coin: $CURRENT_COIN"
+        echo "New Top Coin: $TOP_COIN"
+        echo "Switching Coin, restarting 3main"
+        pkill -f 5watchdog
+        echo "WTM Auto Switch Killed watchdog" | tee -a $WDOG_LOG
+        sleep 2
+        pkill -f 3main
+        
+        echo "$(date) - Mining switched from $CURRENT_COIN to $TOP_COIN" | tee -a $WTM_HISTORY
+        echo "24 Hour Average Revenue: $(awk '{s+=$1}END{print "",s/NR}' RS="\n"  ${NVOC}/WTM_24H_REV) $WTM_CURRENCY"
+        echo "Check again in $TIMEOUT seconds"
+        echo ""
+        echo ""
+      else
+        echo "Mining $CURRENT_COIN ($CURRENT_COIN_ALGORITHM) for $MINER_TIME_MIN minutes, continue mining $CURRENT_COIN for $((WTM_MINIMUM_MINING_TIME - MINER_TIME)) more seconds"
+      fi
+      
+    else
+      echo "$(date) - Same Coin on Top, Continue mining $CURRENT_COIN"
+      echo "24 Hour Average Revenue: $(awk '{s+=$1}END{print "",s/NR}' RS="\n"  ${NVOC}/WTM_24H_REV) $WTM_CURRENCY"
+      echo "Check again in $TIMEOUT seconds"
+      echo ""
+      echo ""
+      sleep 1
+      grep "$(awk -F: '{print $1}' <  ${NVOC}/WTM_top_coin)" <  ${NVOC}/WTM_current_revenue |  awk -F: '{print $2}' >> ${NVOC}/WTM_24H_REV
+      SYNC_COUNT=$(( 1440 / WTM_AUTO_SWITCH_SYNC_INTERVAL ))
+      echo "$(tail -$SYNC_COUNT ${NVOC}/WTM_24H_REV)" > ${NVOC}/WTM_24H_REV
+      sed -i '/^$/d' ${NVOC}/WTM_24H_REV
+    fi
+
+  else
+    echo "Auto start miner set to NO"
+  fi
+  sleep $TIMEOUT
+done
+
