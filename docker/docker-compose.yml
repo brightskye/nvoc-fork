@@ -1,0 +1,22 @@
+version: '3'
+services:
+  nvoc:
+    container_name: nvoc
+    build: .
+    image: brightskye/ubuntu:16.04
+    ports: 
+      - "8080:80"
+    volumes: 
+      - ../:/shared
+      - ../scripts:/root/bin
+    entrypoint:
+      - bash 
+      - /shared/docker/init.sh
+    stdin_open: true
+    tty: true
+    working_dir: /root
+    networks: 
+      - docker_default
+networks:
+  docker_default:
+    external: true

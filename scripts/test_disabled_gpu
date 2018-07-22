@@ -1,0 +1,173 @@
+#!/bin/bash
+# @param $1= test name
+# @param $2= test description
+# @param $3= expected result
+function test_start() {
+    EXPECTED=$3
+    ACTUAL=""
+    TEST_NAME=$1
+    DESCRIPTION=$2
+    # echo "Test $TEST_NAME - $2" 
+}
+function test_end() {
+    local report='FAILED!'
+    if [ "$ACTUAL" == "$EXPECTED" ]; then
+        report='PASSED!'
+    fi
+    echo "$report - $TEST_NAME $DESCRIPTION Expected: '$EXPECTED'; Actual: '$ACTUAL'"
+}
+
+test_start "DISABLED_GPU_ARRAY" "default load - DISABLED_GPUS=NULL" 0
+#echo "DISABLED_GPUS: " $DISABLED_GPUS
+source /shared/nvoc/helpers/disabled_gpu
+ACTUAL=${#DISABLED_GPU_ARRAY[@]}
+test_end
+
+
+test_start "DISABLED_GPU_ARRAY" "default load - DISABLED_GPUS='0 5 10 18'" "0 5 10 18"
+DISABLED_GPUS="0 5 10 18"
+unset DISABLED_GPU_ARRAY
+#echo "DISABLED_GPUS: " $DISABLED_GPUS
+source /shared/nvoc/helpers/disabled_gpu
+ACTUAL=${!DISABLED_GPU_ARRAY[@]}
+test_end
+
+
+test_start "is_gpu_disabled" "no arguments - DISABLED_GPUS='2'" 0
+DISABLED_GPUS='2'
+unset DISABLED_GPU_ARRAY
+#echo "DISABLED_GPUS: " $DISABLED_GPUS
+source /shared/nvoc/helpers/disabled_gpu
+if is_gpu_disabled; then
+    ACTUAL=1
+else
+    ACTUAL=0
+fi
+test_end
+
+test_start "is_gpu_disabled" "TEST GPU 1 - DISABLED_GPUS='2'" 0
+if is_gpu_disabled 1; then
+    ACTUAL=1
+else
+    ACTUAL=0
+fi
+test_end
+
+test_start "is_gpu_disabled" "TEST GPU 2 - DISABLED_GPUS='2'" 1
+if is_gpu_disabled 2; then
+    ACTUAL=1
+else
+    ACTUAL=0
+fi
+test_end
+
+test_start 'build_miner_devices_opt' 'no disabled array' "No DISABLED_GPUS detected"
+unset DISABLED_GPU_ARRAY
+#echo "DISABLED_GPU_ARRAY: " ${DISABLED_GPU_ARRAY[@]}
+ACTUAL=$(build_miner_devices_opt)
+test_end
+build_miner_devices_opt
+EXPECTED=''
+ACTUAL=$BMINER_OPTS
+test_end
+EXPECTED=''
+ACTUAL=$CCMINER_OPTS
+test_end
+EXPECTED=''
+ACTUAL=$CLAYMORE_OPTS
+test_end
+EXPECTED=''
+ACTUAL=$DSTM_OPTS
+test_end
+EXPECTED=''
+ACTUAL=$ETHMINER_OPTS
+test_end
+EXPECTED=''
+ACTUAL=$EWBF_OPTS
+test_end
+
+test_start 'build_miner_devices_opt' 'disabled gpu 5 with GPUS=11' 
+DISABLED_GPUS="5"
+GPUS=11
+unset DISABLED_GPU_ARRAY
+source /shared/nvoc/helpers/disabled_gpu
+#echo "DISABLED_GPUS: " $DISABLED_GPUS
+#echo "DISABLED_GPU_ARRAY INDEXES: " ${!DISABLED_GPU_ARRAY[@]}
+ACTUAL= build_miner_devices_opt
+test_end
+EXPECTED=' -devices 0,1,2,3,4,6,7,8,9,10'
+ACTUAL=$BMINER_OPTS
+test_end
+EXPECTED=' --devices 0,1,2,3,4,6,7,8,9,10'
+ACTUAL=$CCMINER_OPTS
+test_end
+EXPECTED=' -di 012346789a'
+ACTUAL=$CLAYMORE_OPTS
+test_end
+EXPECTED=' --dev 0 1 2 3 4 6 7 8 9 10'
+ACTUAL=$DSTM_OPTS
+test_end
+EXPECTED=' --cuda_devices 0 1 2 3 4 6 7 8 9 10'
+ACTUAL=$ETHMINER_OPTS
+test_end
+EXPECTED=' --cuda_devices 0 1 2 3 4 6 7 8 9 10'
+ACTUAL=$EWBF_OPTS
+test_end
+
+
+
+test_start 'build_miner_devices_opt' 'shall not overide existing device with gpus=18' 
+DISABLED_GPUS="0 10 17"
+unset DISABLED_GPU_ARRAY
+source /shared/nvoc/helpers/disabled_gpu
+#echo "DISABLED_GPUS: " $DISABLED_GPUS
+#echo "DISABLED_GPU_ARRAY INDEXES: " ${!DISABLED_GPU_ARRAY[@]}
+build_miner_devices_opt 18
+EXPECTED=' -devices 0,1,2,3,4,6,7,8,9,10'
+ACTUAL=$BMINER_OPTS
+test_end
+EXPECTED=' --devices 0,1,2,3,4,6,7,8,9,10'
+ACTUAL=$CCMINER_OPTS
+test_end
+EXPECTED=' -di 012346789a'
+ACTUAL=$CLAYMORE_OPTS
+test_end
+EXPECTED=' --dev 0 1 2 3 4 6 7 8 9 10'
+ACTUAL=$DSTM_OPTS
+test_end
+EXPECTED=' --cuda_devices 0 1 2 3 4 6 7 8 9 10'
+ACTUAL=$ETHMINER_OPTS
+test_end
+EXPECTED=' --cuda_devices 0 1 2 3 4 6 7 8 9 10'
+ACTUAL=$EWBF_OPTS
+test_end
+
+test_start 'build_miner_devices_opt' 'test boundary, DISABLED_GPUS=''0 10 17'', GPUS=18' 
+DISABLED_GPUS="0 10 17"
+unset DISABLED_GPU_ARRAY
+source /shared/nvoc/helpers/disabled_gpu
+#echo "DISABLED_GPUS: " $DISABLED_GPUS
+#echo "DISABLED_GPU_ARRAY INDEXES: " ${!DISABLED_GPU_ARRAY[@]}
+BMINER_OPTS=''
+CCMINER_OPTS=''
+CLAYMORE_OPTS=''
+DSTM_OPTS=''
+ETHMINER_OPTS=''
+EWBF_OPTS=''
+BMINER_OPTS=''
+build_miner_devices_opt 18
+EXPECTED=' --devices 1,2,3,4,5,6,7,8,9,11,12,13,14,15,16'
+ACTUAL=$CCMINER_OPTS
+test_end
+EXPECTED=' -di 123456789bcdefg'
+ACTUAL=$CLAYMORE_OPTS
+test_end
+EXPECTED=' --dev 1 2 3 4 5 6 7 8 9 11 12 13 14 15 16'
+ACTUAL=$DSTM_OPTS
+test_end
+EXPECTED=' --cuda_devices 1 2 3 4 5 6 7 8 9 11 12 13 14 15 16'
+ACTUAL=$ETHMINER_OPTS
+test_end
+EXPECTED=' --cuda_devices 1 2 3 4 5 6 7 8 9 11 12 13 14 15 16'
+ACTUAL=$EWBF_OPTS
+test_end
