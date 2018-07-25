@@ -171,3 +171,21 @@ test_end
 EXPECTED=' --cuda_devices 1 2 3 4 5 6 7 8 9 11 12 13 14 15 16'
 ACTUAL=$EWBF_OPTS
 test_end
+
+
+echo "DISABLED_GPUS: " $DISABLED_GPUS
+echo "DISABLED_GPU_ARRAY INDEXES: " ${!DISABLED_GPU_ARRAY[@]}
+echo "DISABLED_GPU_ARRAY INDEXES: " ${DISABLED_GPU_ARRAY[@]}
+echo "DISABLED_GPU_ARRAY INDEXES: " ${DISABLED_GPU_ARRAY[a]}
+for (( i=0; i < 20; i++ ))
+do
+    if [ ${DISABLED_GPU_ARRAYa[i]} ]; then
+        # skip if disabled
+        echo "$(date) - [INFO] - GPU$i disabled"
+        (( count++ ))
+        continue
+    fi
+done
+
+someunknownfunction 1
+echo a
