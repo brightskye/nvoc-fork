@@ -3,21 +3,57 @@
 ## Conditionally source test file
 
 [[ "$(type -t 't_start')" = 'function' ]] || source test_helper.sh
-source "$NVOC/helpers/disable_gpu.sh" 
+source "$NVOC/helpers/disable_gpu.sh" 1> /dev/null
 # unset RUN_ALL
-
+# RUN_ALL=1
 #
 # _dgh_main
-t_start '_dgh_main'
+t_start '_dgh_main' 
   tf 'without DISABLED_GPUS' '' 'DISABLED_GPUS not set' 1
   DISABLED_GPUS='0 10 17'
   te 'Update Disabled GPU' ' _dgh_main' '' 0
   te '' '${!DISABLED_GPU_ARRAY[@]}' '0 10 17'
   te '' '$CUDA_DEVICE_ORDER' 'PCI_BUS_ID'
+  
+  #Check global variable MDPA (MINER_DEVICE_PREFIX_ARRAY)
+  te '' '${#MDPA[@]}' '7' 0
+  te '' '${MDPA[BMINER]}' '-devices ' 0
+  te '' '${MDPA[CCMINER]}' '--devices ' 0
+  te '' '${MDPA[CLAYMORE]}' '-di ' 0
+  te '' '${MDPA[DSTM]}' '--dev ' 0
+  te '' '${MDPA[ETHMINER]}' '--cuda_devices ' 0
+  te '' '${MDPA[EWBF]}' '--cuda_devices ' 0
+  te '' '${MDPA[Z_EWBF]}' '--cuda_devices ' 0
+
+  te '' '${#MDTA[@]}' '7' 0
+  te '' '${MDTA[BMINER]}' 'N' 0
+  te '' '${MDTA[CCMINER]}' 'N' 0
+  te '' '${MDTA[CLAYMORE]}' 'A' 0
+  te '' '${MDTA[DSTM]}' 'N' 0
+  te '' '${MDTA[ETHMINER]}' 'N' 0
+  te '' '${MDTA[EWBF]}' 'N' 0
+  te '' '${MDTA[Z_EWBF]}' 'N' 0
+
+  te '' '${#MDDA[@]}' '7' 0
+  te '' '${MDDA[BMINER]}' ',' 0
+  te '' '${MDDA[CCMINER]}' ',' 0
+  te '' '${MDDA[CLAYMORE]}' '' 0
+  te '' '${MDDA[DSTM]}' ' ' 0
+  te '' '${MDDA[ETHMINER]}' ' ' 0
+  te '' '${MDDA[EWBF]}' ' ' 0
+  te '' '${MDDA[Z_EWBF]}' ' ' 0
+
+  # Clean up
+  unset DISABLED_GPUS
+  unset DISABLED_GPU_ARRAY
+  # Cannot unset readonly array
+  # unset MDPA
+  # unset MDTA
+  # unset MDDA
 t_end
 #
 # dgh_int_to_alphanumeric
-t_start 'dgh_int_to_alphanumeric' 
+t_start 'dgh_int_to_alphanumeric'
   tf '' '' '' 127
   tf '' ',' '' 127
   tf '' 0 0 0
@@ -45,7 +81,6 @@ t_end
 #
 # dgh_is_gpu_disabled
 t_start 'dgh_is_gpu_disabled'
-  unset DISABLED_GPU_ARRAY
   DISABLED_GPUS='0 10 17'
   te 'Update DISABLED_GPU_ARRAY' ' _dgh_main' '' 0
   te 'Check DISABLED_GPU_ARRAY' '${!DISABLED_GPU_ARRAY[@]}' '0 10 17'
@@ -58,6 +93,10 @@ t_start 'dgh_is_gpu_disabled'
   tf '' A '' 127
   tf '' 17 '' 0
   tf '' h '' 0 # h=17 acording to a=10, b=11 ..
+
+  #clean up
+  unset DISABLED_GPUS
+  unset DISABLED_GPU_ARRAY
 t_end
 
 #
@@ -67,12 +106,14 @@ t_start 'dgh_gpu_count'
   tf 'empty GPUS' '' 0 1
   GPUS=8
   tf 'with 8 GPUS' '' 8 0
+
+  # Clean up
+  unset GPUS
 t_end
 
 #
 # dgh_update_devices
 t_start 'dgh_update_devices'
-  unset DISABLED_GPU_ARRAY
   tf 'missing DISABLED_GPU_ARRAY' "'--device ' ' ' '--devices 0 1 2 3 a z --api-port -33330 -other'" \
     '--devices 0 1 2 3 a z --api-port -33330 -other' 1
   
@@ -111,31 +152,30 @@ t_start 'dgh_update_devices'
      '' 0
   tf 'All gpu disabled' '"--device " "," "--some other 0,1,9,a,b,y,z --device 1,9,b,y --api-port -33330 -other"' \
     '--some other 0,1,9,a,b,y,z --device --api-port -33330 -other' 0
+  # Clean up
+  unset DISABLED_GPUS
+  unset DISABLED_GPU_ARRAY
 t_end
 
 #
 # dgh_all_enabled_devices
-t_start 'dgh_all_enabled_devices' 
-  unset DISABLED_GPU_ARRAY
-  unset GPUS
-  
+t_start 'dgh_all_enabled_devices'
   tf 'Without DISABLED_GPU_ARRAY, GPUS, arguments' '' '' 0 #test no DISABLED_GPU_ARRAY
 
   GPUS=13
 
-  tf 'Without DISABLED_GPU ARRAY and arguments' '' \
-    '0 1 2 3 4 5 6 7 8 9 10 11 12' 0
+  tf 'Without DISABLED_GPU ARRAY and arguments' '' '0123456789101112' 0
 
   unset DISABLED_GPU_ARRAY
   DISABLED_GPUS='0 10 12'
   te 'Update DISABLED_GPU_ARRAY' ' _dgh_main' '' 0
   te 'Check DISABLED_GPU_ARRAY' '${!DISABLED_GPU_ARRAY[@]}' '0 10 12'
 
-  tf 'Without arguments' '' '1 2 3 4 5 6 7 8 9 11' 0
-  tf 'gpu arg=15' '"-dev " "," "" 15' '-dev 1,2,3,4,5,6,7,8,9,11,13,14' 0
+  tf 'Without arguments' '' '12345678911' 0
+  tf 'gpu arg=15' '"-dev " " " "" 15' '-dev 1 2 3 4 5 6 7 8 9 11 13 14' 0
   tf 'gpu arg=0' '"-dev " "," "" 0' '-dev ' 0
-  tf 'type arg=a' '"-dev " "," a' '-dev 1,2,3,4,5,6,7,8,9,b' 0
-  tf 'delimiter arg=""' '"-dev " "" a' '-dev 123456789b' 0
+  tf 'type arg=A' '"-dev " "," A' '-dev 1,2,3,4,5,6,7,8,9,b' 0
+  tf 'delimiter arg=""' '"-dev " "" A' '-dev 123456789b' 0
 
   unset DISABLED_GPU_ARRAY
   DISABLED_GPUS='1 9 11 13'
@@ -143,10 +183,10 @@ t_start 'dgh_all_enabled_devices'
   te 'Update DISABLED_GPU_ARRAY' ' _dgh_main' '' 0
   te 'Check DISABLED_GPU_ARRAY' '${!DISABLED_GPU_ARRAY[@]}' '1 9 11 13'
 
-  tf 'Without arguments' '' '0 2 3 4 5 6 7 8 10 12 14' 0
-  tf 'type arg=a' '"-dev " "," a' '-dev 0,2,3,4,5,6,7,8,a,c,e' 0
-  tf 'type arg=x' '"-dev " "," x' '-dev 0,2,3,4,5,6,7,8,10,12,14' 0
-  tf 'delimiter arg=""' '"-dev " "" a' '-dev 02345678ace' 0
+  tf 'Without arguments' '' '02345678101214' 0
+  tf 'type arg=A' '"-dev " "," A' '-dev 0,2,3,4,5,6,7,8,a,c,e' 0
+  tf 'type arg=x' '"-dev " " " x' '-dev 0 2 3 4 5 6 7 8 10 12 14' 0
+  tf 'delimiter arg=""' '"-dev " "" A' '-dev 02345678ace' 0
 
   unset DISABLED_GPU_ARRAY
   DISABLED_GPUS='0 1 2'
@@ -155,14 +195,16 @@ t_start 'dgh_all_enabled_devices'
   te 'Check DISABLED_GPU_ARRAY' '${!DISABLED_GPU_ARRAY[@]}' '0 1 2'
 
   tf 'All gpu is disabled' '"-dev " "" a' '-dev ' 0
+
+  # Clean up
+  unset GPUS
+  unset DISABLED_GPUS
+  unset DISABLED_GPU_ARRAY
 t_end
 
 #
 # dgh_enabled_devices
-t_start 'dgh_enabled_devices' 
-  unset DISABLED_GPU_ARRAY
-  unset GPUS
-    
+t_start 'dgh_enabled_devices'
   tf 'Without DISABLED_GPU_ARRAY, GPUS, arguments' '' '' 0 #test no DISABLED_GPU_ARRAY
 
   DISABLED_GPUS='0 10 12'
@@ -170,12 +212,13 @@ t_start 'dgh_enabled_devices'
   te 'Update DISABLED_GPU_ARRAY' ' _dgh_main' '' 0
   te 'Check DISABLED_GPU_ARRAY' '${!DISABLED_GPU_ARRAY[@]}' '0 10 12'
 
-  tf 'Without arguments' '' '1 2 3 4 5 6 7 8 9 11' 0
-  tf 'Without input' '"--di " " " a ""' '--di 1 2 3 4 5 6 7 8 9 b' 0
-  tf 'With prefix unmatch' '"--di " "" a "--some --thing --here"' '--some --thing --here --di 123456789b' 0
-  tf 'input absent gpu' '"--di " "" a "--some --di --thing --here"' '--some --di --thing --here' 0
-  tf 'all gpu disabled' '"--di " "" a "--some --di 0ac --thing --here"' '--some --di --thing --here' 0
-  tf 'With partial gpus' '"--di " "" a "--some --di 012346789abcd --thing --here" 14' '--some --di 12346789bd --thing --here' 0
+  tf 'Without arguments' '' '12345678911' 0
+  tf 'Without prefix' '"" "" A "--something -here 1 2 3 and --there"' '--something -here 1 2 3 and --there 123456789b' 0
+  tf 'Without input' '"--di " " " A ""' '--di 1 2 3 4 5 6 7 8 9 b' 0
+  tf 'With prefix unmatch' '"--di " "" A "--some --thing --here"' '--some --thing --here --di 123456789b' 0
+  tf 'input absent gpu' '"--di " "" A "--some --di --thing --here"' '--some --di --thing --here' 0
+  tf 'all gpu disabled' '"--di " "" A "--some --di 0ac --thing --here"' '--some --di --thing --here' 0
+  tf 'With partial gpus' '"--di " "" A "--some --di 012346789abcd --thing --here" 14' '--some --di 12346789bd --thing --here' 0
 
   unset DISABLED_GPU_ARRAY
   DISABLED_GPUS='1 9 11 13'
@@ -183,8 +226,12 @@ t_start 'dgh_enabled_devices'
   te 'Update DISABLED_GPU_ARRAY' ' _dgh_main' '' 0
   te 'Check DISABLED_GPU_ARRAY' '${!DISABLED_GPU_ARRAY[@]}' '1 9 11 13'
 
-  tf 'With partial gpus' '"--di " " " n "--some --di 0 2 4 6 8 10 12 14 --thing --here" ' '--some --di 0 2 4 6 8 10 12 14 --thing --here' 0
-  tf 'With partial gpus' '"--di " " " n "--some --di 1 3 5 7 13 --thing --here" ' '--some --di 3 5 7 --thing --here' 0
+  tf 'With partial gpus' '"--di " " " N "--some --di 0 2 4 6 8 10 12 14 --thing --here" ' '--some --di 0 2 4 6 8 10 12 14 --thing --here' 0
+  tf 'With partial gpus' '"--di " " " N "--some --di 1 3 5 7 13 --thing --here" ' '--some --di 3 5 7 --thing --here' 0
+  # Clean up
+  unset GPUS
+  unset DISABLED_GPUS
+  unset DISABLED_GPU_ARRAY
 t_end
 
 #
@@ -233,4 +280,19 @@ t_start 'dgh_get_miner_opts'
   unset EMINER_OPTS
   tf 'Without EMINER_OPTS' "'' $COIN $ALGO" '' 1
 
+  # Clean up
+  unset ZEC_MINER
+  unset ZEC_EMINER_OPTS
+  unset ZEC_ZMINER_OPTS
+  unset ZEC_MMINER_OPTS
+  unset EQUIHASH_MINER
+  unset EQUIHASH_EMINER_OPTS
+  unset EQUIHASH_ZMINER_OPTS
+  unset EQUIHASH_MMINER_OPTS
+  unset EMINER_OPTS
+  unset ZMINER_OPTS
+  unset MMINER_OPTS
+  unset COIN
+  unset ALGO
 t_end
+
