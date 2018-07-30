@@ -159,7 +159,7 @@ t_end
 
 #
 # dgh_enabled_devices
-t_start 'dgh_enabled_devices' 1
+t_start 'dgh_enabled_devices' 
   unset DISABLED_GPU_ARRAY
   unset GPUS
     
@@ -189,26 +189,34 @@ t_end
 
 #
 # dgh_get_miner_opts
-t_start 'dgh_get_miner_opts'
+t_start 'dgh_get_miner_opts' 
   ZEC_MINER='ZMINER'
   ZEC_EMINER_OPTS='1 2 3'
   ZEC_ZMINER_OPTS='4 5 6'
+  ZEC_MMINER_OPTS='7 8 9'
   EQUIHASH_MINER='EMINER'
   EQUIHASH_EMINER_OPTS='1 2 3 4'
   EQUIHASH_ZMINER_OPTS='4 5 6 7'
+  EQUIHASH_MMINER_OPTS='7 8 9 10'
   EMINER_OPTS='1 2 3 4 5'
   ZMINER_OPTS='4 5 6 7 8'
+  MMINER_OPTS='7 8 9 10 11'
   COIN='ZEC'
   ALGO='EQUIHASH'
 
   tf 'empty argument' '' '' 1
-  tf 'With ZEC_ZMINER_OPTS' "$COIN $ALGO" '4 5 6' 0
+  tf 'without coin and miner' "'' '' '$ALGO'" '1 2 3 4' 0
+  tf 'without algo and miner' "'' '$COIN'" '4 5 6' 0
+  tf 'with miner only' "'MMINER' '' '' ''" '7 8 9 10 11' 0
+  tf 'with miner and algo' "'MMINER' '' '$ALGO' ''" '7 8 9 10' 0
+  tf 'with miner and coin' "'MMINER' '$COIN' '' ''" '7 8 9' 0
+  tf 'With ZEC_ZMINER_OPTS' "'' $COIN $ALGO" '4 5 6' 0
   unset ZEC_ZMINER_OPTS
-  tf 'Without ZEC_ZMINER_OPTS' "$COIN $ALGO" '4 5 6 7' 0
+  tf 'Without ZEC_ZMINER_OPTS' "'' $COIN $ALGO" '4 5 6 7' 0
   unset EQUIHASH_ZMINER_OPTS
-  tf 'Without EQUIHASH_ZMINER_OPTS' "$COIN $ALGO" '4 5 6 7 8' 0
+  tf 'Without EQUIHASH_ZMINER_OPTS' "'' $COIN $ALGO" '4 5 6 7 8' 0
   unset ZMINER_OPTS
-  tf 'Without ZMINER_OPTS' "$COIN $ALGO" '' 1
+  tf 'Without ZMINER_OPTS' "'' $COIN $ALGO" '' 1
 
   ZEC_ZMINER_OPTS='4 5 6'
   te 'Reset ZEC_ZMINER_OPTS' '$ZEC_ZMINER_OPTS' '4 5 6' 0
@@ -217,12 +225,12 @@ t_start 'dgh_get_miner_opts'
   ZMINER_OPTS='4 5 6 7 8'
   te 'Reset ZMINER_OPTS' '$ZMINER_OPTS' '4 5 6 7 8' 0
   unset ZEC_MINER
-  tf 'Without ZEC_MINER' "$COIN $ALGO" '1 2 3' 0
+  tf 'Without ZEC_MINER' "'' $COIN $ALGO" '1 2 3' 0
   unset ZEC_EMINER_OPTS
-  tf 'Without ZEC_EMINER_MINER' "$COIN $ALGO" '1 2 3 4' 0
+  tf 'Without ZEC_EMINER_MINER' "'' $COIN $ALGO" '1 2 3 4' 0
   unset EQUIHASH_EMINER_OPTS
-  tf 'Without EQUIHASH_EMINER_OPTS' "$COIN $ALGO" '1 2 3 4 5' 0
+  tf 'Without EQUIHASH_EMINER_OPTS' "'' $COIN $ALGO" '1 2 3 4 5' 0
   unset EMINER_OPTS
-  tf 'Without EMINER_OPTS' "$COIN $ALGO" '' 1
+  tf 'Without EMINER_OPTS' "'' $COIN $ALGO" '' 1
 
 t_end

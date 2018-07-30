@@ -78,17 +78,15 @@ function tf () {
       actual \
       actual_return_code \
       report=''
-    # echo "FUNC '$FUNC'"
-    # echo "args '$args'"
     actual=$(eval $FUNC ${args})
     actual_return_code=$?
     (( TOTAL_RUN[$FUNC]++ ))
     [[ "$actual" == "$expected" ]] && report="${G}${B}PASSED!${N}" || { report="${R}${B}FAILED!${N}" ; (( TOTAL_FAIL[$FUNC]++ )); }
-    echo -e "$report - ${C}${B}$FUNC${N} - ${desc:-"args: '${args}'"} ${C}${B}EXPECTING${N}:'$expected'; ${C}${B}ACTUAL${N}:'$actual'"
+    echo -e "$report - ${C}${B}$FUNC${N} - ${desc:-"args: '${args}'"} ${C}${B}EXPECTING${N}:|$expected|; ${C}${B}ACTUAL${N}:|$actual|"
     if [[ ! -z $expected_return_code ]]; then
       (( TOTAL_RUN[$FUNC]++ ))
       [[ $expected_return_code -eq $actual_return_code ]] && report="${G}${B}PASSED!${N}" || { report="${R}${B}FAILED!${N}"; (( TOTAL_FAIL[$FUNC]++ )); }
-      echo -e "$report - ${C}$FUNC${N} - $desc ${C}EXPECTING RETURN CODE${N}:'$expected_return_code'; ${C}ACTUAL${N}:'$actual_return_code'"
+      echo -e "$report - ${C}$FUNC${N} - $desc ${C}EXPECTING RETURN CODE${N}:|$expected_return_code|; ${C}ACTUAL${N}:|$actual_return_code|"
     fi
   fi
 }
