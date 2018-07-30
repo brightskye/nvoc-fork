@@ -1,0 +1,27 @@
+#!/bin/bash
+# package name:t
+# Main test file
+#
+######################################################################################################
+##################################      Script Execution Start      ##################################
+######################################################################################################
+source test_helper.sh
+
+# unset RUN_ALL to enable selective test case
+RUN_ALL=1
+
+echo -e "\n${C}${B}==================== TESTS START ====================${N}"
+source disable_gpu_test.sh
+source generic_helper_test.sh
+
+
+echo -e "${C}${B}===================== TESTS END =====================${N}"
+echo -e "${C}${B}"
+echo "============================================================"
+echo "==========                SUMMARY                 =========="
+echo "============================================================"
+echo -e "${N}"
+for func in ${!TOTAL_FAIL[@]}
+do
+  echo -e "${B}${C}$func${N}- Total Run: ${B}${C}${TOTAL_RUN[$func]}${N}; Total Fail: ${B}${R}${TOTAL_FAIL[$func]}${N}"
+done
