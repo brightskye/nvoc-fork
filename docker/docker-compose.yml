@@ -8,7 +8,6 @@ services:
       - "8080:80"
     volumes: 
       - ../:/shared
-      - ../scripts:/root/bin
     entrypoint:
       - bash 
       - /shared/docker/init.sh
