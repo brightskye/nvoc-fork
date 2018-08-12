@@ -15,33 +15,33 @@ t_start '_dgh_main'
   te '' '${!DISABLED_GPU_ARRAY[@]}' '0 10 17'
   te '' '$CUDA_DEVICE_ORDER' 'PCI_BUS_ID'
   
-  #Check global variable MDPA (MINER_DEVICE_PREFIX_ARRAY)
-  te '' '${#MDPA[@]}' '7' 0
-  te '' '${MDPA[BMINER]}' '-devices ' 0
-  te '' '${MDPA[CCMINER]}' '--devices ' 0
-  te '' '${MDPA[CLAYMORE]}' '-di ' 0
-  te '' '${MDPA[DSTM]}' '--dev ' 0
-  te '' '${MDPA[ETHMINER]}' '--cuda_devices ' 0
-  te '' '${MDPA[EWBF]}' '--cuda_devices ' 0
-  te '' '${MDPA[Z_EWBF]}' '--cuda_devices ' 0
+  # #Check global variable MDPA (MINER_DEVICE_PREFIX_ARRAY)
+  # te '' '${#MDPA[@]}' '7' 0
+  # te '' '${MDPA[BMINER]}' '-devices ' 0
+  # te '' '${MDPA[CCMINER]}' '--devices ' 0
+  # te '' '${MDPA[CLAYMORE]}' '-di ' 0
+  # te '' '${MDPA[DSTM]}' '--dev ' 0
+  # te '' '${MDPA[ETHMINER]}' '--cuda_devices ' 0
+  # te '' '${MDPA[EWBF]}' '--cuda_devices ' 0
+  # te '' '${MDPA[Z_EWBF]}' '--cuda_devices ' 0
 
-  te '' '${#MDTA[@]}' '7' 0
-  te '' '${MDTA[BMINER]}' 'N' 0
-  te '' '${MDTA[CCMINER]}' 'N' 0
-  te '' '${MDTA[CLAYMORE]}' 'A' 0
-  te '' '${MDTA[DSTM]}' 'N' 0
-  te '' '${MDTA[ETHMINER]}' 'N' 0
-  te '' '${MDTA[EWBF]}' 'N' 0
-  te '' '${MDTA[Z_EWBF]}' 'N' 0
+  # te '' '${#MDTA[@]}' '7' 0
+  # te '' '${MDTA[BMINER]}' 'N' 0
+  # te '' '${MDTA[CCMINER]}' 'N' 0
+  # te '' '${MDTA[CLAYMORE]}' 'A' 0
+  # te '' '${MDTA[DSTM]}' 'N' 0
+  # te '' '${MDTA[ETHMINER]}' 'N' 0
+  # te '' '${MDTA[EWBF]}' 'N' 0
+  # te '' '${MDTA[Z_EWBF]}' 'N' 0
 
-  te '' '${#MDDA[@]}' '7' 0
-  te '' '${MDDA[BMINER]}' ',' 0
-  te '' '${MDDA[CCMINER]}' ',' 0
-  te '' '${MDDA[CLAYMORE]}' '' 0
-  te '' '${MDDA[DSTM]}' ' ' 0
-  te '' '${MDDA[ETHMINER]}' ' ' 0
-  te '' '${MDDA[EWBF]}' ' ' 0
-  te '' '${MDDA[Z_EWBF]}' ' ' 0
+  # te '' '${#MDDA[@]}' '7' 0
+  # te '' '${MDDA[BMINER]}' ',' 0
+  # te '' '${MDDA[CCMINER]}' ',' 0
+  # te '' '${MDDA[CLAYMORE]}' '' 0
+  # te '' '${MDDA[DSTM]}' ' ' 0
+  # te '' '${MDDA[ETHMINER]}' ' ' 0
+  # te '' '${MDDA[EWBF]}' ' ' 0
+  # te '' '${MDDA[Z_EWBF]}' ' ' 0
 
   # Clean up
   unset DISABLED_GPUS
